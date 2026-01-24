@@ -32,6 +32,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add posts/
-          git commit -m "Add daily coupon deals $(date +'%Y-%m-%d')" || exit 0
+          git add posts/ README.md  # README.md를 추가했습니다!
+          git commit -m "Update daily deals and index $(date +'%Y-%m-%d')" || exit 0
           git push
