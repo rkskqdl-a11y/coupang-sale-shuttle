@@ -44,10 +44,9 @@ def fetch_data(keyword):
 def save_products():
     os.makedirs("posts", exist_ok=True)
     target = get_random_keyword()
-    print(f"검색 키워드: {target}")
     res = fetch_data(target)
     
-    # 데이터가 있으면 HTML 생성
+    # HTML 생성 로직
     if res and 'data' in res and res['data'].get('productData'):
         clean_target = target.replace(" ", "_")
         for item in res['data']['productData']:
@@ -72,9 +71,7 @@ def save_products():
                     <p style='font-size:1.5em; color:#ff4500;'><b>{format(item['productPrice'], ',')}원</b></p>
                     <p style='color:gray; font-size:0.8em;'>본 포스팅은 파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.</p>
                 </div></body></html>""")
-    else:
-        print("상품 데이터 수집 실패 (API 키 확인 필요)")
-
+    
     update_index()
     update_sitemap()
     with open(".nojekyll", "w") as f: f.write("")
@@ -84,7 +81,7 @@ def update_index():
     if os.path.exists("posts"):
         files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
-    # 1. 메인 웹사이트 index.html 생성
+    # index.html 생성
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -109,12 +106,12 @@ def update_index():
             
         f.write("</div></body></html>")
 
-    # 2. [핵심] README.md에 '절대 경로' 링크 삽입
-    # 사용자가 실수로 깃허브 저장소에서 헤매지 않도록 외부 링크로 유도합니다.
+    # [수정됨] README.md 링크 문법 수정 (중요!)
+    # 깃허브에서 확실하게 클릭되는 표준 링크 방식으로 변경했습니다.
     with open("README.md", "w", encoding="utf-8") as f:
         f.write("# 🛒 쇼핑몰 운영 중\n\n")
-        f.write("### 👇 아래 버튼을 눌러야 웹사이트로 이동합니다! 👇\n\n")
-        f.write("[## 🚀 [클릭] 실시간 핫딜 사이트 바로가기 🚀 ##](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)")
+        f.write("### 👇 아래 파란색 글씨를 클릭하세요 👇\n\n")
+        f.write("## [👉 실시간 핫딜 사이트 바로가기 (클릭)](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)\n")
 
 def update_sitemap():
     base_url = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle/"
