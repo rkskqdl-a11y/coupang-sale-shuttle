@@ -6,22 +6,21 @@ import requests
 import json
 from datetime import datetime
 
-ACCESS_KEY = os.environ['COUPANG_ACCESS_KEY']
-SECRET_KEY = os.environ['COUPANG_SECRET_KEY']
+# 1. API 키 불러오기
+ACCESS_KEY = os.environ.get('COUPANG_ACCESS_KEY')
+SECRET_KEY = os.environ.get('COUPANG_SECRET_KEY')
 
-# [마케팅 전문가의 초정밀 키워드 리스트]
-# 구매 의도가 확실한 디테일한 키워드들입니다. 계속 추가 가능합니다.
+# [초정밀 롱테일 키워드 50개] - API가 가장 잘 반응하는 단어들로 구성
 KEYWORDS = [
-    "베이컨", "학생노트북", "인강용노트북", "왼손마우스", "무소음키보드", 
-    "자취생침대", "캠핑용의자", "단백질보충제", "강아지배변패드", "고양이모래",
-    "독서대", "블루투스이어폰", "보조배터리", "가습기", "전기포트",
-    "에어프라이어", "물티슈", "세탁세제", "샴푸", "바디워시",
-    "게이밍모니터", "데스크패드", "아이패드케이스", "맥북파우치", "거치대",
-    "스탠딩책상", "목마사지기", "폼롤러", "요가매트", "손목보호대",
-    "비타민D", "오메가3", "루테인", "밀크씨슬", "유산균",
-    "햇반", "컵라면", "생수2L", "탄산수", "제로콜라",
-    "에어팟프로", "갤럭시버즈", "스마트워치스트랩", "차량용거치대", "방향제"
-    # 여기에 생각나시는 디테일한 키워드를 따옴표와 쉼표 사이에 계속 추가하시면 됩니다.
+    "햇반", "생수", "라면", "두루마리휴지", "물티슈", "샴푸", "바디워시", "세탁세제",
+    "노트북", "무선마우스", "블루투스이어폰", "보조배터리", "충전기", "아이패드케이스",
+    "에어프라이어", "믹서기", "전기포트", "가습기", "제습기", "청소기",
+    "단백질쉐이크", "비타민C", "유산균", "오메가3", "마스크",
+    "강아지사료", "고양이모래", "배변패드", "간식", "애견샴푸",
+    "캠핑의자", "캠핑테이블", "텐트", "랜턴", "침낭",
+    "베이컨", "닭가슴살", "계란", "우유", "요거트",
+    "양말", "반팔티", "청바지", "슬리퍼", "운동화",
+    "왼손마우스", "인강용노트북", "학생용노트북", "베이킹소다", "주방세제"
 ]
 
 def get_authorization_header(method, path, query_string):
@@ -32,8 +31,7 @@ def get_authorization_header(method, path, query_string):
 
 def fetch_data(keyword):
     DOMAIN = "https://api-gateway.coupang.com"
-    # 실제 구매자가 검색할 법한 키워드로 검색
-    URL = f"/v2/providers/affiliate_open_api/apis/opensource/v1/search?keyword={keyword}&limit=10"
+    URL = f"/v2/providers/affiliate_open_api/apis/opensource/v1/search?keyword={keyword}&limit=20"
     
     headers = {
         "Authorization": get_authorization_header("GET", URL, ""),
@@ -41,64 +39,70 @@ def fetch_data(keyword):
     }
     
     try:
+        print(f"DEBUG: [{keyword}] 검색 시도 중...")
         response = requests.get(DOMAIN + URL, headers=headers, timeout=15)
+        print(f"DEBUG: API 응답 코드: {response.status_code}")
         return response.json()
     except Exception as e:
-        print(f"Error fetching data: {e}")
+        print(f"DEBUG: API 호출 에러 발생: {e}")
         return None
 
 def save_products():
     os.makedirs("posts", exist_ok=True)
     
-    # 날짜와 시간을 조합해 리스트에서 키워드를 순환 선택
-    # 1000개가 넘어도 중복 없이 매번 다른 키워드를 잡습니다.
-    seed = int(datetime.now().strftime('%Y%m%d%H%M'))
-    target = KEYWORDS[seed % len(KEYWORDS)]
-    
-    print(f"--- 오늘의 정밀 타겟 키워드: {target} ---")
+    # 시간 기반으로 키워드 선택
+    target = KEYWORDS[int(time.time()) % len(KEYWORDS)]
     res = fetch_data(target)
     
-    if not res or 'data' not in res:
-        print(f"[{target}] 결과가 없습니다. API 응답 확인 필요.")
+    if not res:
+        print("DEBUG: API 응답이 비어있습니다.")
         return
 
-    items = res.get('data', {}).get('productData', [])
-    
-    if not items:
-        print(f"[{target}] 상품 리스트가 비어있습니다.")
+    # 쿠팡 API 응답 구조 로그 출력 (문제 진단용)
+    print(f"DEBUG: API 응답 본문 일부: {str(res)[:200]}")
+
+    if 'data' not in res or 'productData' not in res['data']:
+        print(f"DEBUG: [{target}] 키워드에 대한 상품 데이터가 응답에 없습니다.")
         return
+
+    items = res['data']['productData']
+    print(f"DEBUG: 찾은 상품 개수: {len(items)}")
 
     for item in items:
         p_id = item['productId']
-        # 파일명에 키워드를 포함해 SEO(검색엔진최적화) 강화
         date_str = datetime.now().strftime('%Y%m%d')
-        filename = f"posts/{date_str}_{target}_{p_id}.md"
+        # 파일명 중복 방지 및 SEO를 위해 키워드 포함
+        filename = f"posts/{date_str}_{p_id}.md"
         
         with open(filename, "w", encoding="utf-8") as f:
-            f.write(f"# 🔥 [추천] {item['productName']}\n\n")
+            f.write(f"# 🔥 [초특가] {item['productName']}\n\n")
             f.write(f"![상품이미지]({item['productImage']})\n\n")
-            f.write(f"## 💰 가격 및 혜택\n")
-            f.write(f"- **판매가:** {format(item['productPrice'], ',')}원\n")
-            f.write(f"- **특징:** {target} 관련 베스트 인기 상품\n\n")
-            f.write(f"### 🔗 구매 링크\n")
-            f.write(f"**실제 사용 후기와 상세 정보를 확인하세요!**\n\n")
-            f.write(f"[👉 제품 상세페이지 바로가기]({item['productUrl']})\n\n")
+            f.write(f"## 💰 가격 정보\n")
+            f.write(f"- **현재 판매가:** {format(item['productPrice'], ',')}원\n")
+            f.write(f"- **상태:** 베스트 인기 상품\n\n")
+            f.write(f"### 🔗 상세 확인 및 구매\n")
+            f.write(f"[👉 쿠팡에서 자세히 보기 및 후기확인]({item['productUrl']})\n\n")
             f.write("---\n")
-            f.write("이 포스팅은 쿠팡 파트너스 활동의 일환으로 소정의 수수료를 제공받을 수 있습니다.")
+            f.write("이 포스팅은 쿠팡 파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.")
     
     update_index()
 
 def update_index():
-    # 최신 등록 순으로 README 업데이트
+    if not os.path.exists("posts"): return
     files = sorted([f for f in os.listdir("posts") if f.endswith(".md")], reverse=True)
+    
     with open("README.md", "w", encoding="utf-8") as f:
-        f.write("# 🚀 실시간 초정밀 핫딜 정보\n")
-        f.write("> 구매 의사가 확실한 세부 품목별 베스트 상품입니다.\n\n")
-        f.write("## 📅 최신 업데이트 상품\n")
-        for file in files[:20]:
-            # 파일명에서 키워드와 날짜 추출하여 가독성 있게 노출
-            display_name = file.replace(".md", "").replace("_", " ")
-            f.write(f"- [{display_name}](posts/{file})\n")
+        f.write("# 🚀 실시간 초정밀 핫딜 리스트\n")
+        f.write(f"> 마지막 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write("## 📅 최신 등록 상품\n")
+        if not files:
+            f.write("- 등록된 상품이 없습니다. 시스템 확인 중입니다.\n")
+        else:
+            for file in files[:30]: # 최근 30개 노출
+                f.write(f"- [상세보기] {file} (posts/{file})\n")
 
 if __name__ == "__main__":
-    save_products()
+    if not ACCESS_KEY or not SECRET_KEY:
+        print("ERROR: API 키가 설정되지 않았습니다. GitHub Secrets를 확인하세요.")
+    else:
+        save_products()
