@@ -31,14 +31,15 @@ def fetch_data(keyword):
     except: return None
 
 def main():
+    # 1. 폴더 생성 (에러 방지)
     os.makedirs("posts", exist_ok=True)
     
-    # 1. 상품 수집
+    # 2. 상품 수집 시도
     keywords = ["노트북", "생수", "라면", "물티슈", "키보드", "마우스", "아이패드", "영양제", "커피", "샴푸"]
     target = random.choice(keywords)
     res = fetch_data(target)
     
-    # 2. 개별 상품 페이지 생성
+    # 3. 상품 파일 생성
     if res and 'data' in res and res['data'].get('productData'):
         for item in res['data']['productData']:
             p_id = item['productId']
@@ -53,13 +54,14 @@ def main():
                         <a href='{item['productUrl']}' style='background:#FF4500; color:white; padding:15px 30px; text-decoration:none; border-radius:30px; font-weight:bold; display:inline-block;'>👉 최저가 보러가기</a>
                     </div></body></html>""")
     
+    # 파일이 하나도 없으면 테스트 파일 생성 (404 방지)
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     if not files:
-        # 파일이 없을 경우 테스트 파일 생성
-        with open(f"posts/test_item.html", "w", encoding="utf-8") as f: f.write("<html><body>Test Item</body></html>")
+        with open(f"posts/test_item.html", "w", encoding="utf-8") as f: 
+            f.write("<html><body><h1>시스템 정상 작동 중</h1></body></html>")
         files = ["test_item.html"]
 
-    # 3. [웹사이트] index.html 생성
+    # 4. [필수] index.html 생성 (이게 있어야 404가 안 뜸)
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"""<!DOCTYPE html>
 <html lang="ko">
@@ -71,13 +73,14 @@ def main():
         body {{ font-family: sans-serif; background: #f0f2f5; color: #333; text-align: center; padding: 20px; }}
         .header {{ margin-bottom: 30px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
         .card {{ display: block; background: white; padding: 15px; margin: 10px auto; max-width: 600px; border-radius: 10px; text-decoration: none; color: #333; border: 1px solid #ddd; font-weight: bold; }}
-        .card:hover {{ border-color: #FF4500; transform: translateY(-3px); transition: 0.2s; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }}
+        .card:hover {{ border-color: #FF4500; transform: translateY(-3px); transition: 0.2s; }}
     </style>
 </head>
 <body>
     <div class="header">
         <h1 style="color:#FF4500;">🚀 실시간 핫딜 정보</h1>
-        <p>자동 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+        <p>업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+        <p style="font-size:0.8em; color:gray;">(이 화면이 보이면 404 에러는 해결된 것입니다)</p>
     </div>
     <div id="list">
 """)
@@ -86,15 +89,13 @@ def main():
             f.write(f'        <a class="card" href="posts/{file}">🔥 {name}</a>\n')
         f.write("</div></body></html>")
 
-    # 4. [에러 해결용] README.md 재생성
-    # 이 파일이 있어야 'pathspec' 에러가 사라집니다. 내용은 웹사이트 링크만 담습니다.
+    # 5. [중요] README.md 재생성 (로봇 에러 방지용)
     with open("README.md", "w", encoding="utf-8") as f:
-        f.write(f"# 🛒 자동화 시스템 가동 중\n\n")
-        f.write(f"### 👇 웹사이트 접속하기 👇\n\n")
-        f.write(f"[🚀 https://rkskqdl-a11y.github.io/coupang-sale-shuttle/](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)\n")
+        f.write(f"# 🛒 자동화 시스템 정상 가동\n\n")
+        f.write(f"웹사이트 주소: https://rkskqdl-a11y.github.io/coupang-sale-shuttle/\n")
 
-    # 5. .nojekyll 생성
-    with open(".nojekyll", "w") as f: f.write("")
+    # 6. .nojekyll 생성 (디자인 깨짐 방지)
+    with open(".nojekyll", "w", encoding="utf-8") as f: f.write("")
 
 if __name__ == "__main__":
     main()
