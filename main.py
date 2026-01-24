@@ -42,12 +42,14 @@ def fetch_data(keyword):
         return None
 
 def save_products():
+    # [중요] 폴더가 없으면 무조건 생성 (에러 방지)
     os.makedirs("posts", exist_ok=True)
+    
     target = get_random_keyword()
     print(f"검색 키워드: {target}")
     res = fetch_data(target)
     
-    # [수정 포인트] 데이터가 없어도 index.html 생성 단계로 넘어가도록 구조 변경
+    # 상품 데이터 저장 시도
     if res and 'data' in res and res['data'].get('productData'):
         clean_target = target.replace(" ", "_")
         for item in res['data']['productData']:
@@ -75,7 +77,7 @@ def save_products():
     else:
         print("상품 데이터 수집 실패 (API 키 확인 필요)")
 
-    # [핵심] API 실패 여부와 상관없이 무조건 웹사이트 갱신
+    # [핵심 수정] 상품이 있든 없든 무조건 웹사이트(index.html) 갱신
     update_index()
     update_sitemap()
     
@@ -83,10 +85,12 @@ def save_products():
     with open(".nojekyll", "w") as f: f.write("")
 
 def update_index():
-    if not os.path.exists("posts"): return
-    files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
+    # 폴더가 비어있어도 에러 없이 진행하도록 수정
+    files = []
+    if os.path.exists("posts"):
+        files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
-    # 메인 index.html 생성
+    # 메인 index.html 생성 (무조건 실행됨)
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -96,13 +100,14 @@ def update_index():
             .card {{ display: block; background: white; padding: 20px; margin: 10px auto; max-width: 600px; border-radius: 15px; text-decoration: none; color: #333; box-shadow: 0 2px 10px rgba(0,0,0,0.05); font-weight: bold; transition: 0.3s; }}
             .card:hover {{ border: 2px solid #FF4500; background: #fffaf9; transform: translateY(-3px); }}
             h1 {{ color: #FF4500; }}
-            .empty {{ padding: 50px; color: gray; }}
+            .empty {{ padding: 50px; color: gray; border: 2px dashed #ddd; border-radius: 10px; margin-top: 20px; }}
         </style></head><body>
         <h1>🏆 실시간 초특가 핫딜 리스트</h1>
         <div id="list">""")
         
+        # 상품이 하나도 없을 때 안내 메시지 출력
         if not files:
-            f.write("<div class='empty'>현재 수집된 상품이 없습니다.<br>API 키를 확인하거나 잠시 후 다시 시도해주세요.</div>")
+            f.write("<div class='empty'><h3>🚧 상품 수집 대기 중...</h3><p>API 연결 상태를 확인하거나 잠시 후 다시 접속해주세요.</p></div>")
         
         for file in files[:50]:
             parts = file.replace('.html','').split('_')
@@ -111,13 +116,16 @@ def update_index():
             
         f.write("</div></body></html>")
 
-    # README는 더 이상 웹페이지 역할을 하지 않도록 설명만 남김
+    # README는 더 이상 헷갈리지 않게 안내 문구만 남김
     with open("README.md", "w", encoding="utf-8") as f:
-        f.write("# 🛒 쇼핑몰 운영 중\n\n이 파일은 설명서입니다. 웹사이트는 [여기](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/index.html)로 접속하세요.")
+        f.write("# 🛒 쇼핑몰 운영 중\n\n이 화면이 보인다면 아직 웹사이트 로딩 중이거나 캐시 문제입니다. [여기](index.html)를 클릭하세요.")
 
 def update_sitemap():
     base_url = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle/"
-    files = [f for f in os.listdir("posts") if f.endswith(".html")]
+    files = []
+    if os.path.exists("posts"):
+        files = [f for f in os.listdir("posts") if f.endswith(".html")]
+        
     with open("sitemap.xml", "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
         f.write(f'  <url><loc>{base_url}</loc></url>\n')
