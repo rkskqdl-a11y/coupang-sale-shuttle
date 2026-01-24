@@ -34,7 +34,7 @@ def main():
     os.makedirs("posts", exist_ok=True)
     
     # 1. 상품 수집
-    keywords = ["노트북", "생수", "라면", "물티슈", "키보드", "마우스", "아이패드"]
+    keywords = ["노트북", "생수", "라면", "물티슈", "키보드", "마우스", "아이패드", "영양제", "커피", "샴푸"]
     target = random.choice(keywords)
     res = fetch_data(target)
     
@@ -53,13 +53,13 @@ def main():
                         <a href='{item['productUrl']}' style='background:#FF4500; color:white; padding:15px 30px; text-decoration:none; border-radius:30px; font-weight:bold; display:inline-block;'>👉 최저가 보러가기</a>
                     </div></body></html>""")
     
-    # 3. 파일 목록 읽기 (없으면 테스트 파일 생성)
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     if not files:
+        # 파일이 없을 경우 테스트 파일 생성
         with open(f"posts/test_item.html", "w", encoding="utf-8") as f: f.write("<html><body>Test Item</body></html>")
         files = ["test_item.html"]
 
-    # 4. [핵심] index.html 생성 (이게 유일한 메인 화면)
+    # 3. [웹사이트] index.html 생성
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"""<!DOCTYPE html>
 <html lang="ko">
@@ -68,24 +68,30 @@ def main():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>쿠팡 핫딜 셔틀</title>
     <style>
-        body {{ font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; }}
-        .header {{ margin-bottom: 30px; border-bottom: 2px solid #FF4500; padding-bottom: 20px; }}
-        .card {{ display: block; background: #333; padding: 15px; margin: 10px auto; max-width: 600px; border-radius: 10px; text-decoration: none; color: white; border: 1px solid #444; font-weight: bold; }}
-        .card:hover {{ border-color: #FF4500; background: #444; transform: scale(1.02); transition: 0.2s; }}
+        body {{ font-family: sans-serif; background: #f0f2f5; color: #333; text-align: center; padding: 20px; }}
+        .header {{ margin-bottom: 30px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
+        .card {{ display: block; background: white; padding: 15px; margin: 10px auto; max-width: 600px; border-radius: 10px; text-decoration: none; color: #333; border: 1px solid #ddd; font-weight: bold; }}
+        .card:hover {{ border-color: #FF4500; transform: translateY(-3px); transition: 0.2s; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }}
     </style>
 </head>
 <body>
     <div class="header">
-        <h1 style="color:#FF4500;">🎉 웹사이트 접속 성공! 🎉</h1>
-        <p>검은 배경이 보이면 성공입니다.</p>
-        <p>최근 업데이트: {datetime.now().strftime('%H:%M:%S')}</p>
+        <h1 style="color:#FF4500;">🚀 실시간 핫딜 정보</h1>
+        <p>자동 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
     </div>
     <div id="list">
 """)
-        for file in files[:30]:
+        for file in files[:40]:
             name = file.replace(".html", "").replace("_", " ")
-            f.write(f'        <a class="card" href="posts/{file}">🔥 {name} 확인하기</a>\n')
+            f.write(f'        <a class="card" href="posts/{file}">🔥 {name}</a>\n')
         f.write("</div></body></html>")
+
+    # 4. [에러 해결용] README.md 재생성
+    # 이 파일이 있어야 'pathspec' 에러가 사라집니다. 내용은 웹사이트 링크만 담습니다.
+    with open("README.md", "w", encoding="utf-8") as f:
+        f.write(f"# 🛒 자동화 시스템 가동 중\n\n")
+        f.write(f"### 👇 웹사이트 접속하기 👇\n\n")
+        f.write(f"[🚀 https://rkskqdl-a11y.github.io/coupang-sale-shuttle/](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)\n")
 
     # 5. .nojekyll 생성
     with open(".nojekyll", "w") as f: f.write("")
