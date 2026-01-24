@@ -51,7 +51,7 @@ def save_products():
 
     for item in res['data']['productData']:
         p_id = item['productId']
-        # .html로 생성하여 웹 브라우저가 즉시 렌더링하도록 함
+        # 확장자를 html로 강제 고정
         filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{clean_target}_{p_id}.html"
         if os.path.exists(filename): continue 
 
@@ -60,56 +60,48 @@ def save_products():
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
             <title>{item['productName']}</title>
             <style>
-                body {{ font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }}
-                .container {{ max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }}
-                img {{ width: 100%; border-radius: 10px; margin-bottom: 20px; }}
-                .price {{ color: #ff4500; font-size: 1.5em; font-weight: bold; }}
-                .btn {{ background: linear-gradient(135deg, #FF4500, #FF8C00); color: white; padding: 15px 30px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; margin-top: 20px; font-size: 1.2em; }}
-                .btn:hover {{ opacity: 0.9; }}
+                body {{ font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }}
+                .container {{ max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }}
+                img {{ width: 100%; border-radius: 15px; margin-bottom: 20px; }}
+                .btn {{ background: linear-gradient(135deg, #FF4500, #FF8C00); color: white; padding: 18px 35px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; margin-top: 20px; font-size: 1.2em; }}
             </style></head><body>
             <div class='container'>
                 <h2>{item['productName']}</h2>
                 <img src='{item['productImage']}'>
                 <a href='{item['productUrl']}' class='btn'>👉 초특가 혜택 확인하기 🛒</a>
-                <p class='price'>{format(item['productPrice'], ',')}원</p>
-                <p>🚀 로켓배송 / 무료배송 지원</p>
-                <hr style='border:0; height:1px; background:#eee;'>
+                <p style='font-size:1.5em; color:#ff4500;'><b>{format(item['productPrice'], ',')}원</b></p>
                 <p style='color:gray; font-size:0.8em;'>본 포스팅은 파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.</p>
             </div></body></html>""")
 
     update_index()
     update_sitemap()
+    # Jekyll 간섭 방지용 파일 생성
+    with open(".nojekyll", "w") as f: f.write("")
 
 def update_index():
     if not os.path.exists("posts"): return
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
-    # 웹 브라우저가 가장 먼저 읽는 정문 index.html
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>24시 실시간 핫딜 정보 센터</title>
+        <title>24시 핫딜 셔틀</title>
         <style>
             body {{ font-family: sans-serif; background: #f9f9f9; text-align: center; padding: 20px; }}
-            .card {{ display: block; background: white; padding: 20px; margin: 10px auto; max-width: 600px; border-radius: 15px; text-decoration: none; color: #333; box-shadow: 0 2px 10px rgba(0,0,0,0.05); font-weight: bold; transition: 0.3s; }}
-            .card:hover {{ border: 2px solid #FF4500; background: #fffaf9; transform: translateY(-3px); }}
+            .card {{ display: block; background: white; padding: 20px; margin: 10px auto; max-width: 600px; border-radius: 15px; text-decoration: none; color: #333; box-shadow: 0 2px 10px rgba(0,0,0,0.05); font-weight: bold; }}
+            .card:hover {{ border: 2px solid #FF4500; background: #fffaf9; }}
             h1 {{ color: #FF4500; }}
-            .date {{ font-size: 0.8em; color: #999; }}
         </style></head><body>
         <h1>🏆 실시간 초특가 핫딜 리스트</h1>
-        <p>매일 40개씩 자동으로 엄선되는 상품 정보입니다.</p>
         <div id="list">""")
         for file in files[:50]:
-            # 파일명에서 날짜와 키워드만 추출하여 예쁘게 출력
-            parts = file.replace('.html','').split('_')
-            display_name = " ".join(parts[1:-1]) if len(parts) > 2 else file
-            date_str = parts[0]
-            f.write(f'<a class="card" href="posts/{file}"><span class="date">[{date_str}]</span><br>🔥 {display_name} 상세정보 확인</a>')
+            name = file.replace('.html','').replace('_', ' ')
+            f.write(f'<a class="card" href="posts/{file}">🔥 {name} 상세정보</a>')
         f.write("</div></body></html>")
 
-    # README.md는 깃허브 관리용으로만 남김
+    # README.md는 텍스트가 나와도 상관없는 관리용으로 최소화
     with open("README.md", "w", encoding="utf-8") as f:
-        f.write("# 🛒 쿠팡 파트너스 자동화 공장 가동 중\n\n[웹사이트 접속하기](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)")
+        f.write("# 🛒 쇼핑몰 운영 중\n\n[웹사이트 바로가기](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)")
 
 def update_sitemap():
     base_url = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle/"
