@@ -1,3 +1,3 @@
-# 🛒 실시간 핫딜 자동화 운영 중
+# 🛒 쿠팡 파트너스 자동화 공장 가동 중
 
-[여기를 클릭하여 웹사이트 접속](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)
+[웹사이트 접속하기](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)
