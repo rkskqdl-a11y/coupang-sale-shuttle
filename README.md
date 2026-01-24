@@ -1,3 +1,3 @@
 # 🛒 쇼핑몰 운영 중
 
-이 파일은 설명서입니다. 웹사이트는 [여기](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/index.html)로 접속하세요.
+이 화면이 보인다면 아직 웹사이트 로딩 중이거나 캐시 문제입니다. [여기](index.html)를 클릭하세요.
