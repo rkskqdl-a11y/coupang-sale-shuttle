@@ -42,14 +42,12 @@ def fetch_data(keyword):
         return None
 
 def save_products():
-    # [중요] 폴더가 없으면 무조건 생성 (에러 방지)
     os.makedirs("posts", exist_ok=True)
-    
     target = get_random_keyword()
     print(f"검색 키워드: {target}")
     res = fetch_data(target)
     
-    # 상품 데이터 저장 시도
+    # 데이터가 있으면 HTML 생성
     if res and 'data' in res and res['data'].get('productData'):
         clean_target = target.replace(" ", "_")
         for item in res['data']['productData']:
@@ -77,20 +75,16 @@ def save_products():
     else:
         print("상품 데이터 수집 실패 (API 키 확인 필요)")
 
-    # [핵심 수정] 상품이 있든 없든 무조건 웹사이트(index.html) 갱신
     update_index()
     update_sitemap()
-    
-    # Jekyll 처리 방지 파일
     with open(".nojekyll", "w") as f: f.write("")
 
 def update_index():
-    # 폴더가 비어있어도 에러 없이 진행하도록 수정
     files = []
     if os.path.exists("posts"):
         files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
-    # 메인 index.html 생성 (무조건 실행됨)
+    # 1. 메인 웹사이트 index.html 생성
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -105,9 +99,8 @@ def update_index():
         <h1>🏆 실시간 초특가 핫딜 리스트</h1>
         <div id="list">""")
         
-        # 상품이 하나도 없을 때 안내 메시지 출력
         if not files:
-            f.write("<div class='empty'><h3>🚧 상품 수집 대기 중...</h3><p>API 연결 상태를 확인하거나 잠시 후 다시 접속해주세요.</p></div>")
+            f.write("<div class='empty'><h3>🚧 상품 준비 중입니다.</h3><p>잠시만 기다려주세요.</p></div>")
         
         for file in files[:50]:
             parts = file.replace('.html','').split('_')
@@ -116,9 +109,12 @@ def update_index():
             
         f.write("</div></body></html>")
 
-    # README는 더 이상 헷갈리지 않게 안내 문구만 남김
+    # 2. [핵심] README.md에 '절대 경로' 링크 삽입
+    # 사용자가 실수로 깃허브 저장소에서 헤매지 않도록 외부 링크로 유도합니다.
     with open("README.md", "w", encoding="utf-8") as f:
-        f.write("# 🛒 쇼핑몰 운영 중\n\n이 화면이 보인다면 아직 웹사이트 로딩 중이거나 캐시 문제입니다. [여기](index.html)를 클릭하세요.")
+        f.write("# 🛒 쇼핑몰 운영 중\n\n")
+        f.write("### 👇 아래 버튼을 눌러야 웹사이트로 이동합니다! 👇\n\n")
+        f.write("[## 🚀 [클릭] 실시간 핫딜 사이트 바로가기 🚀 ##](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)")
 
 def update_sitemap():
     base_url = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle/"
