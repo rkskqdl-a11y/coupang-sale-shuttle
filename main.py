@@ -41,15 +41,39 @@ def fetch_data(keyword):
         print(f"API Error: {e}")
         return None
 
+# [긴급 추가] API가 안 될 때 가짜 상품을 만드는 함수
+def create_test_post():
+    filename = f"posts/{datetime.now().strftime('%Y%m%d')}_시스템점검_test.html"
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(f"""<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        <title>시스템 점검 중</title>
+        <style>
+            body {{ font-family: sans-serif; background: #f0f2f5; padding: 20px; text-align: center; }}
+            .container {{ background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }}
+            h2 {{ color: #FF4500; }}
+        </style></head><body>
+        <div class='container'>
+            <h2>🚧 웹사이트 생성 성공! 🚧</h2>
+            <p>현재 쿠팡 API 키가 연결되지 않아 테스트 상품을 표시합니다.</p>
+            <p>이 화면이 보인다면 <b>웹사이트 구축 자체는 성공</b>한 것입니다.</p>
+            <hr>
+            <p>다음 단계: 쿠팡 파트너스 API 키를 확인해주세요.</p>
+        </div></body></html>""")
+    print("테스트용 임시 상품 생성 완료")
+
 def save_products():
     os.makedirs("posts", exist_ok=True)
     target = get_random_keyword()
+    print(f"검색 키워드: {target}")
     res = fetch_data(target)
     
-    # HTML 생성 로직
+    success = False
+    
     if res and 'data' in res and res['data'].get('productData'):
         clean_target = target.replace(" ", "_")
         for item in res['data']['productData']:
+            success = True
             p_id = item['productId']
             filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{clean_target}_{p_id}.html"
             if os.path.exists(filename): continue 
@@ -72,16 +96,18 @@ def save_products():
                     <p style='color:gray; font-size:0.8em;'>본 포스팅은 파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.</p>
                 </div></body></html>""")
     
+    # [핵심] 상품을 하나도 못 가져왔으면 테스트 파일이라도 만듦
+    if not success:
+        print("API 오류 또는 데이터 없음 -> 테스트 파일 생성")
+        create_test_post()
+
     update_index()
     update_sitemap()
     with open(".nojekyll", "w") as f: f.write("")
 
 def update_index():
-    files = []
-    if os.path.exists("posts"):
-        files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
+    files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
-    # index.html 생성
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -91,13 +117,9 @@ def update_index():
             .card {{ display: block; background: white; padding: 20px; margin: 10px auto; max-width: 600px; border-radius: 15px; text-decoration: none; color: #333; box-shadow: 0 2px 10px rgba(0,0,0,0.05); font-weight: bold; transition: 0.3s; }}
             .card:hover {{ border: 2px solid #FF4500; background: #fffaf9; transform: translateY(-3px); }}
             h1 {{ color: #FF4500; }}
-            .empty {{ padding: 50px; color: gray; border: 2px dashed #ddd; border-radius: 10px; margin-top: 20px; }}
         </style></head><body>
         <h1>🏆 실시간 초특가 핫딜 리스트</h1>
         <div id="list">""")
-        
-        if not files:
-            f.write("<div class='empty'><h3>🚧 상품 준비 중입니다.</h3><p>잠시만 기다려주세요.</p></div>")
         
         for file in files[:50]:
             parts = file.replace('.html','').split('_')
@@ -106,19 +128,13 @@ def update_index():
             
         f.write("</div></body></html>")
 
-    # [수정됨] README.md 링크 문법 수정 (중요!)
-    # 깃허브에서 확실하게 클릭되는 표준 링크 방식으로 변경했습니다.
+    # README는 더 이상 보이지 않아야 정상이지만 혹시 모르니 유지
     with open("README.md", "w", encoding="utf-8") as f:
-        f.write("# 🛒 쇼핑몰 운영 중\n\n")
-        f.write("### 👇 아래 파란색 글씨를 클릭하세요 👇\n\n")
-        f.write("## [👉 실시간 핫딜 사이트 바로가기 (클릭)](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)\n")
+        f.write("# 🛒 쇼핑몰 가동 중\n\n[웹사이트 바로가기](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)")
 
 def update_sitemap():
     base_url = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle/"
-    files = []
-    if os.path.exists("posts"):
-        files = [f for f in os.listdir("posts") if f.endswith(".html")]
-        
+    files = [f for f in os.listdir("posts") if f.endswith(".html")]  
     with open("sitemap.xml", "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
         f.write(f'  <url><loc>{base_url}</loc></url>\n')
