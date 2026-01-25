@@ -9,9 +9,10 @@ from urllib.parse import urlencode
 import random
 import re
 
-# 1. API 키 설정
+# 1. 기본 설정
 ACCESS_KEY = os.environ.get('COUPANG_ACCESS_KEY')
 SECRET_KEY = os.environ.get('COUPANG_SECRET_KEY')
+SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle" # 사용자님 사이트 주소
 
 def get_authorization_header(method, path, query_string):
     datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
@@ -40,7 +41,7 @@ def get_title_from_html(filepath):
     except: pass
     return "추천 상품"
 
-# [업그레이드] 키워드 창고 대개방 (수백 가지 조합 가능)
+# [유지] 아까 만든 강력한 키워드 조합 로직
 def get_random_keyword():
     modifiers = [
         "가성비", "인기", "추천", "세일", "베스트", "특가", "국민", "필수", "요즘 뜨는", "대박",
@@ -49,18 +50,18 @@ def get_random_keyword():
     ]
     
     brands = [
-        "삼성", "LG", "애플", "샤오미", "다이슨", "테팔", "필립스", "브라운", "쿠쿠", "쿠첸", # 가전
-        "나이키", "아디다스", "뉴발란스", "휠라", "언더아머", "노스페이스", "파타고니아", # 의류
-        "농심", "오뚜기", "CJ", "비비고", "햇반", "동원", "서울우유", "종근당", "정관장", # 식품
-        "크리넥스", "코디", "다우니", "피죤", "페브리즈", "유한킴벌리", "3M" # 생필품
+        "삼성", "LG", "애플", "샤오미", "다이슨", "테팔", "필립스", "브라운", "쿠쿠", "쿠첸", 
+        "나이키", "아디다스", "뉴발란스", "휠라", "언더아머", "노스페이스", "파타고니아", 
+        "농심", "오뚜기", "CJ", "비비고", "햇반", "동원", "서울우유", "종근당", "정관장",
+        "크리넥스", "코디", "다우니", "피죤", "페브리즈", "유한킴벌리", "3M"
     ]
     
     products = [
-        "노트북", "모니터", "마우스", "키보드", "아이패드", "갤럭시탭", "에어팟", "버즈", "스마트워치", # 디지털
-        "라면", "생수", "햇반", "김치", "통조림", "커피", "우유", "두유", "영양제", "유산균", "오메가3", # 식품
-        "물티슈", "휴지", "세제", "섬유유연제", "샴푸", "바디워시", "치약", "칫솔", "마스크", # 생필품
-        "청소기", "로봇청소기", "공기청정기", "제습기", "선풍기", "에어프라이어", "전자레인지", "건조기", # 가전
-        "반팔티", "후드티", "슬랙스", "청바지", "패딩", "바람막이", "운동화", "슬리퍼", "양말" # 의류
+        "노트북", "모니터", "마우스", "키보드", "아이패드", "갤럭시탭", "에어팟", "버즈", "스마트워치",
+        "라면", "생수", "햇반", "김치", "통조림", "커피", "우유", "두유", "영양제", "유산균", "오메가3",
+        "물티슈", "휴지", "세제", "섬유유연제", "샴푸", "바디워시", "치약", "칫솔", "마스크",
+        "청소기", "로봇청소기", "공기청정기", "제습기", "선풍기", "에어프라이어", "전자레인지", "건조기",
+        "반팔티", "후드티", "슬랙스", "청바지", "패딩", "바람막이", "운동화", "슬리퍼", "양말"
     ]
     
     specs = [
@@ -69,8 +70,6 @@ def get_random_keyword():
         "화이트", "블랙", "네이비", "그레이", "파스텔", "신상"
     ]
     
-    # 4가지를 다 섞으면 너무 길어서 검색 결과가 없을 수도 있으니, 
-    # 랜덤으로 2~3개만 조합해서 더 정확한 검색어를 만듭니다.
     strategy = random.choice([1, 2, 3])
     if strategy == 1:
         return f"{random.choice(modifiers)} {random.choice(products)}"
@@ -158,7 +157,26 @@ def main():
             
         f.write("    </div></body></html>")
 
-    # 5. 마무리
+    # 5. [추가됨] 사이트맵(sitemap.xml) 자동 생성
+    with open("sitemap.xml", "w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        f.write('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
+        
+        # 메인 페이지
+        f.write(f'  <url><loc>{SITE_URL}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n')
+        
+        # 개별 상품 페이지들 (전체 다 포함)
+        if files:
+            for file in files:
+                f.write(f'  <url><loc>{SITE_URL}/posts/{file}</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>\n')
+        
+        f.write('</urlset>')
+
+    # 6. [추가됨] 검색 로봇 안내서 (robots.txt) 생성
+    with open("robots.txt", "w", encoding="utf-8") as f:
+        f.write(f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml")
+
+    # 7. 마무리
     with open("README.md", "w", encoding="utf-8") as f:
         f.write("# 🛒 쇼핑몰 가동 중\n\n[웹사이트 바로가기](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)")
     with open(".nojekyll", "w", encoding="utf-8") as f: f.write("")
