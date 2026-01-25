@@ -1,37 +1,40 @@
-name: Coupang Partners Daily Update
+name: Update Daily Deals
 
 on:
+  push:
+    branches: [ main ]
   schedule:
-    # 한국 시간 기준 매일 오전 9시 (UTC 00:00)
-    - cron: '0 0 * * *'
-  workflow_dispatch: # 수동 실행 버튼 추가
+    - cron: '0 0 * * *' # 매일 자정 실행
+  workflow_dispatch: # 수동 실행 버튼
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
 
-      - name: Install dependencies
-        run: |
-          pip install requests
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
 
-      - name: Run script
-        env:
-          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
-          COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
-        run: python main.py
+    - name: Run script
+      env:
+        COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+        COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
+      run: python main.py
 
-      - name: Commit and Push changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add posts/ README.md  # README.md를 추가했습니다!
-          git commit -m "Update daily deals and index $(date +'%Y-%m-%d')" || exit 0
-          git push
+    - name: Commit and push changes
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add .
+        git commit -m "Update daily deals and index" || exit 0
+        git push
