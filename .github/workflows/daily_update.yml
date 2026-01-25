@@ -4,8 +4,10 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 0 * * *' # 매일 자정 실행
-  workflow_dispatch: # 수동 실행 버튼
+    # 0, 6, 12, 18시는 UTC 기준입니다.
+    # 한국 시간(KST)으로는 +9시간이 되어 09:00, 15:00, 21:00, 03:00에 실행됩니다.
+    - cron: '0 0,6,12,18 * * *'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -36,5 +38,5 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add .
-        git commit -m "Update daily deals and index" || exit 0
+        git commit -m "Auto update: 10 new items" || exit 0
         git push
