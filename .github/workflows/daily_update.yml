@@ -4,7 +4,6 @@ on:
   push:
     branches: [ main ]
   schedule:
-    # 하루 4번 (09, 15, 21, 03시) 실행
     - cron: '0 0,6,12,18 * * *'
   workflow_dispatch:
 
