@@ -8,11 +8,17 @@ from datetime import datetime
 from urllib.parse import urlencode
 import random
 import re
+import google.generativeai as genai
 
 # 1. 기본 설정
 ACCESS_KEY = os.environ.get('COUPANG_ACCESS_KEY')
 SECRET_KEY = os.environ.get('COUPANG_SECRET_KEY')
+GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
 SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
+
+# 제미나이 설정
+if GEMINI_KEY:
+    genai.configure(api_key=GEMINI_KEY)
 
 def get_authorization_header(method, path, query_string):
     datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
@@ -24,7 +30,7 @@ def fetch_data(keyword):
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-        # 한 번 실행 시 10개 수집
+        # 하루 4번 실행 x 10개 = 40개 (무료 한도 50개 이내 안전)
         params = {"keyword": keyword, "limit": 10}
         query_string = urlencode(params)
         url = f"{DOMAIN}{path}?{query_string}"
@@ -64,10 +70,41 @@ def get_random_keyword():
     elif strategy == 2: return f"{random.choice(brands)} {random.choice(products)}"
     else: return f"{random.choice(brands)} {random.choice(products)} {random.choice(specs)}"
 
+# [핵심] Gemini 1.5 Pro (최고 성능) 호출
+def generate_ai_content(product_name):
+    if not GEMINI_KEY:
+        return f"<p>{product_name} 제품은 현재 가장 인기가 많은 베스트셀러 중 하나입니다.</p>"
+    
+    try:
+        # 💎 gemini-1.5-pro 사용 (무료 티어는 분당 2회 제한이 있어서 천천히 실행해야 함)
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        
+        prompt = f"""
+        당신은 10년 차 전문 쇼핑 칼럼니스트입니다.
+        상품명: '{product_name}'
+        
+        이 상품에 대한 매력적이고 상세한 리뷰 포스팅을 HTML 태그 없이 줄글로 작성해주세요.
+        
+        [작성 조건]
+        1. 독자: 합리적인 소비를 지향하는 스마트 컨슈머
+        2. 말투: 전문적이지만 친절하고 신뢰감 있는 '해요체' (이모지 ✨, 🔥, 👍 적절히 사용)
+        3. 내용:
+           - 도입: 이 제품이 왜 요즘 인기인지 흥미 유발
+           - 본문: 제품의 핵심 장점 2~3가지를 구체적인 상황(출근, 육아, 자취 등)에 빗대어 설명
+           - 결론: 고민은 배송만 늦출 뿐이라는 식의 세련된 추천
+        4. 길이: 공백 포함 400자 내외로 풍성하게.
+        5. 주의: 거짓 정보를 지어내지 말고, 일반적인 장점을 서술할 것.
+        """
+        
+        response = model.generate_content(prompt)
+        return response.text.replace("\n", "<br>")
+    except Exception as e:
+        print(f"AI Error: {e}")
+        return f"<p>{product_name} 제품은 독보적인 가성비와 성능으로 소비자 만족도가 매우 높은 제품입니다. 품절 임박 상품이니 서둘러 확인해보세요!</p>"
+
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # 1회 실행 당 10개 수집
     target = get_random_keyword()
     print(f"이번 타임 검색어: {target}")
     
@@ -81,33 +118,54 @@ def main():
                 filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{clean_target}_{p_id}.html"
                 if os.path.exists(filename): continue 
                 
+                print(f"💎 Gemini Pro 글쓰기 중... ({item['productName'][:10]}...)")
+                ai_content = generate_ai_content(item['productName'])
+                
+                # 태그 생성
+                keywords = item['productName'].split(" ")
+                tags = " ".join([f"#{k}" for k in keywords if len(k) > 1][:5])
+                
                 with open(filename, "w", encoding="utf-8") as f:
-                    # [수정됨] 버튼 이름 변경 & 대가성 문구 정식 적용
-                    f.write(f"""<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{item['productName']}</title>
+                    f.write(f"""<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{item['productName']} - 상세 리뷰 및 최저가</title>
                     <style>
-                        body {{ font-family: 'Apple SD Gothic Neo', sans-serif; background: #f5f6f8; padding: 20px; text-align: center; }}
+                        body {{ font-family: 'Apple SD Gothic Neo', sans-serif; background: #f5f6f8; padding: 20px; color: #333; line-height: 1.6; }}
                         .container {{ max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }}
+                        h2 {{ font-size: 1.3rem; margin-bottom: 20px; word-break: keep-all; }}
                         img {{ width: 100%; border-radius: 15px; margin-bottom: 20px; }}
-                        h2 {{ font-size: 1.2rem; color: #333; line-height: 1.4; margin-bottom: 20px; }}
-                        .price {{ font-size: 1.5rem; color: #e44d26; font-weight: bold; margin-bottom: 20px; }}
-                        .btn {{ background: linear-gradient(135deg, #e44d26, #f16529); color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(228, 77, 38, 0.3); transition: 0.3s; }}
-                        .btn:hover {{ transform: scale(1.05); }}
-                        .disclosure {{ margin-top: 30px; padding: 15px; background: #f9f9f9; border-radius: 10px; font-size: 0.8rem; color: #666; line-height: 1.6; border: 1px solid #eee; }}
+                        .price {{ font-size: 1.6rem; color: #e44d26; font-weight: bold; margin-bottom: 20px; }}
+                        .btn {{ background: linear-gradient(135deg, #e44d26, #f16529); color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(228, 77, 38, 0.3); transition: 0.3s; width: 80%; text-align: center; }}
+                        .btn:hover {{ transform: scale(1.02); }}
+                        .ai-review-box {{ background: #fdfdfd; padding: 25px; border-radius: 15px; margin: 30px 0; text-align: left; border: 1px solid #eee; font-size: 0.95rem; box-shadow: inset 0 0 10px rgba(0,0,0,0.01); }}
+                        .ai-badge {{ background: #6c5ce7; color: white; padding: 5px 12px; border-radius: 15px; font-size: 0.75rem; font-weight: bold; margin-bottom: 15px; display: inline-block; }}
+                        .tags {{ color: #888; font-size: 0.8rem; margin-top: 30px; }}
+                        .disclosure {{ margin-top: 20px; padding: 15px; font-size: 0.75rem; color: #999; background: #fff; border: 1px solid #eee; border-radius: 5px; }}
                     </style></head><body>
                     <div class='container'>
                         <h2>{item['productName']}</h2>
                         <img src='{item['productImage']}'>
-                        <div class='price'>{format(item['productPrice'], ',')}원</div>
                         
+                        <div class='ai-review-box'>
+                            <div class='ai-badge'>🏆 에디터 추천 리뷰</div><br>
+                            {ai_content}
+                        </div>
+
+                        <div class='price'>{format(item['productPrice'], ',')}원</div>
                         <a href='{item['productUrl']}' class='btn'>👉 초특가 혜택 확인하기</a>
                         
+                        <div class='tags'>
+                            관련 키워드: {tags}
+                        </div>
+
                         <div class='disclosure'>
-                            본 포스팅은 쿠팡 파트너스 활동의 일환으로,<br>이에 따른 일정액의 수수료를 제공받습니다.
+                            본 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
                         </div>
                     </div></body></html>""")
             except: continue
+            
+            # [중요] Gemini Pro 무료 한도(분당 2회)를 지키기 위해 35초 대기
+            time.sleep(35)
 
-    # 4. 메인 화면(index.html) 업데이트
+    # 4. 메인 화면 & 사이트맵 업데이트
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
     with open("index.html", "w", encoding="utf-8") as f:
@@ -116,7 +174,7 @@ def main():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>핫딜 셔틀</title>
+    <title>핫딜 셔틀 - 프리미엄 큐레이션</title>
     <style>
         body {{ font-family: 'Apple SD Gothic Neo', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }}
         .header {{ text-align: center; background: white; padding: 30px; border-radius: 20px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }}
@@ -131,7 +189,7 @@ def main():
 <body>
     <div class="header">
         <h1>🚀 실시간 핫딜 쇼핑몰</h1>
-        <p style="color:#666;">매일 업데이트되는 최저가 상품</p>
+        <p style="color:#666;">전문가가 엄선한 최저가 상품 모음</p>
         <p style="font-size:0.8rem; color:#999;">최근 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
     </div>
     <div class="grid">
@@ -144,7 +202,6 @@ def main():
             f.write("<div class='card'><h3>상품 수집 중...</h3><p>잠시 후 다시 접속해주세요.</p></div>")
         f.write("    </div></body></html>")
 
-    # 5. 사이트맵 업데이트
     with open("sitemap.xml", "w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         f.write('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
