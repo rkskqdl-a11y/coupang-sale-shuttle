@@ -42,12 +42,12 @@ def fetch_data(keyword):
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # 3. 상품 데이터 수집
+    # 3. 상품 데이터 수집 시도
     target = get_random_keyword()
     print(f"검색 키워드: {target}")
     res = fetch_data(target)
     
-    # 4. 상품 페이지 생성
+    # 4. 상품이 있으면 상세 페이지 생성
     if res and 'data' in res and res['data'].get('productData'):
         clean_target = target.replace(" ", "_")
         for item in res['data']['productData']:
@@ -69,59 +69,68 @@ def main():
                     <img src='{item['productImage']}'>
                     <div style='font-size:1.5rem; color:#e44d26; font-weight:bold; margin-bottom:20px;'>{format(item['productPrice'], ',')}원</div>
                     <a href='{item['productUrl']}' class='btn'>👉 최저가 보러가기</a>
-                    <p style='color:#888; font-size:0.8rem; margin-top:20px;'>파트너스 활동으로 수수료를 제공받을 수 있음</p>
                 </div></body></html>""")
     
-    # 파일 목록 확인
+    # 5. [핵심] index.html 자동 생성 (덮어쓰기)
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
-    # (안전장치) 파일이 하나도 없으면 에러 페이지 생성
-    if not files:
-        with open("posts/error.html", "w", encoding="utf-8") as f:
-            f.write("<html><body><h1>API 키를 확인해주세요. 상품을 가져오지 못했습니다.</h1></body></html>")
-        files = ["error.html"]
-
-    # 5. [메인] index.html 생성 (쇼핑몰 화면)
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>초특가 핫딜</title>
+    <title>초특가 핫딜 셔틀</title>
     <style>
-        body {{ font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }}
-        .header {{ text-align: center; background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; }}
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-width: 800px; margin: auto; }}
-        .card {{ background: white; padding: 15px; border-radius: 10px; text-decoration: none; color: #333; display: flex; flex-direction: column; justify-content: space-between; height: 100px; border: 1px solid #ddd; }}
-        .card:hover {{ border-color: #e44d26; background: #fff5f2; }}
-        .title {{ font-size: 0.9rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }}
-        .badge {{ color: #e44d26; font-size: 0.8rem; font-weight: bold; text-align: right; }}
+        body {{ font-family: 'Apple SD Gothic Neo', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; text-align: center; }}
+        .header {{ background: white; padding: 40px 20px; border-radius: 20px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }}
+        h1 {{ color: #e44d26; margin: 0; font-size: 2rem; }}
+        p {{ color: #666; margin-top: 10px; }}
+        .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; max-width: 1000px; margin: auto; }}
+        .card {{ background: white; padding: 20px; border-radius: 15px; border: 1px solid #eee; display: flex; flex-direction: column; justify-content: center; align-items: center; text-decoration: none; color: #333; transition: 0.3s; min-height: 150px; }}
+        .card:hover {{ border-color: #e44d26; transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }}
+        .card h3 {{ margin: 0 0 10px 0; font-size: 1rem; line-height: 1.4; }}
+        .status {{ color: #e44d26; font-weight: bold; border: 1px solid #e44d26; padding: 5px 15px; border-radius: 20px; background: #fff5f2; font-size: 0.8rem; }}
     </style>
 </head>
 <body>
     <div class="header">
-        <h1 style="color:#e44d26; margin:0;">🚀 실시간 핫딜</h1>
-        <p style="color:#666; font-size:0.8rem;">업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+        <h1>🚀 실시간 핫딜 쇼핑몰</h1>
+        <p>업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
     </div>
+
     <div class="grid">
 """)
-        for file in files[:50]:
-            if file == "error.html": continue
-            parts = file.replace(".html", "").split("_")
-            display_name = " ".join(parts[1:-1]) if len(parts) > 2 else "추천 상품"
-            f.write(f"""
+        # 상품이 하나라도 있으면 상품 리스트 출력
+        if files:
+            for file in files[:60]:
+                parts = file.replace(".html", "").split("_")
+                display_name = " ".join(parts[1:-1]) if len(parts) > 2 else "추천 상품"
+                f.write(f"""
         <a class="card" href="posts/{file}">
-            <div class="title">{display_name}</div>
-            <div class="badge">가격보기 ></div>
+            <h3>🔥 {display_name}</h3>
+            <div class="status">최저가 확인 ></div>
         </a>""")
+        
+        # 상품이 하나도 없으면 (API 키 문제 등) 대기 화면 유지
+        else:
+            f.write("""
+        <div class="card">
+            <h3>상품 준비 중...</h3>
+            <div class="status">시스템 정상 가동 ✅</div>
+        </div>
+        <div class="card">
+            <h3>곧 업데이트됩니다</h3>
+            <div class="status">로봇 대기 중 🤖</div>
+        </div>
+        <div class="card">
+            <h3>API 연결 필요</h3>
+            <div class="status">설정 확인 요망 ⚙️</div>
+        </div>""")
+
         f.write("    </div></body></html>")
 
-    # 6. [에러 해결] README.md 생성 (로봇 만족용)
-    with open("README.md", "w", encoding="utf-8") as f:
-        f.write(f"# 🛒 쇼핑몰 가동 중\n\n[웹사이트 바로가기](https://rkskqdl-a11y.github.io/coupang-sale-shuttle/)")
-
-    # 7. .nojekyll 생성
+    # 6. .nojekyll 생성
     with open(".nojekyll", "w", encoding="utf-8") as f: f.write("")
 
 if __name__ == "__main__":
