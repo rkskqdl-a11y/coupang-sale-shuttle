@@ -24,7 +24,7 @@ def fetch_data(keyword):
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-        # [수정됨] 한 번에 10개만 가져오도록 설정
+        # 한 번 실행 시 10개 수집
         params = {"keyword": keyword, "limit": 10}
         query_string = urlencode(params)
         url = f"{DOMAIN}{path}?{query_string}"
@@ -67,7 +67,7 @@ def get_random_keyword():
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # [수정됨] 반복 없이 딱 1번만 실행 (limit=10 이므로 10개 수집)
+    # 1회 실행 당 10개 수집
     target = get_random_keyword()
     print(f"이번 타임 검색어: {target}")
     
@@ -82,24 +82,32 @@ def main():
                 if os.path.exists(filename): continue 
                 
                 with open(filename, "w", encoding="utf-8") as f:
+                    # [수정됨] 버튼 이름 변경 & 대가성 문구 정식 적용
                     f.write(f"""<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{item['productName']}</title>
                     <style>
-                        body {{ font-family: sans-serif; background: #f5f6f8; padding: 20px; text-align: center; }}
-                        .container {{ max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }}
-                        img {{ width: 100%; border-radius: 10px; }}
-                        .btn {{ background: #e44d26; color: white; padding: 15px 30px; text-decoration: none; border-radius: 30px; display: inline-block; margin-top: 20px; font-weight: bold; transition: 0.3s; }}
+                        body {{ font-family: 'Apple SD Gothic Neo', sans-serif; background: #f5f6f8; padding: 20px; text-align: center; }}
+                        .container {{ max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }}
+                        img {{ width: 100%; border-radius: 15px; margin-bottom: 20px; }}
+                        h2 {{ font-size: 1.2rem; color: #333; line-height: 1.4; margin-bottom: 20px; }}
+                        .price {{ font-size: 1.5rem; color: #e44d26; font-weight: bold; margin-bottom: 20px; }}
+                        .btn {{ background: linear-gradient(135deg, #e44d26, #f16529); color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(228, 77, 38, 0.3); transition: 0.3s; }}
                         .btn:hover {{ transform: scale(1.05); }}
+                        .disclosure {{ margin-top: 30px; padding: 15px; background: #f9f9f9; border-radius: 10px; font-size: 0.8rem; color: #666; line-height: 1.6; border: 1px solid #eee; }}
                     </style></head><body>
                     <div class='container'>
                         <h2>{item['productName']}</h2>
                         <img src='{item['productImage']}'>
-                        <h3 style='color:#e44d26;'>{format(item['productPrice'], ',')}원</h3>
-                        <a href='{item['productUrl']}' class='btn'>👉 쿠팡 최저가 보기</a>
-                        <p style='font-size:0.8rem; color:#888; margin-top:20px;'>수수료를 제공받을 수 있음</p>
+                        <div class='price'>{format(item['productPrice'], ',')}원</div>
+                        
+                        <a href='{item['productUrl']}' class='btn'>👉 초특가 혜택 확인하기</a>
+                        
+                        <div class='disclosure'>
+                            본 포스팅은 쿠팡 파트너스 활동의 일환으로,<br>이에 따른 일정액의 수수료를 제공받습니다.
+                        </div>
                     </div></body></html>""")
             except: continue
 
-    # 4. 메인 화면(index.html) 업데이트 (최신 100개 노출)
+    # 4. 메인 화면(index.html) 업데이트
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
     with open("index.html", "w", encoding="utf-8") as f:
