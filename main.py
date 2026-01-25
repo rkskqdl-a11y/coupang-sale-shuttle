@@ -12,7 +12,7 @@ import random
 ACCESS_KEY = os.environ.get('COUPANG_ACCESS_KEY')
 SECRET_KEY = os.environ.get('COUPANG_SECRET_KEY')
 
-# 2. 검색 키워드 설정
+# 2. 검색 키워드
 modifiers = ["가성비", "학생용", "자취생", "사무용", "특가", "인기", "추천", "세일", "베스트"]
 brands = ["삼성", "LG", "애플", "샤오미", "나이키", "아디다스", "뉴발란스", "테팔", "필립스", "노스페이스"]
 products = ["노트북", "모니터", "마우스", "키보드", "후드티", "러닝화", "생수", "라면", "물티슈", "청소기", "영양제"]
@@ -75,7 +75,7 @@ def main():
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
     with open("index.html", "w", encoding="utf-8") as f:
-        # f-string 문법 오류 방지를 위해 CSS 중괄호를 두 번 {{ }} 썼습니다.
+        # f-string 오류 방지를 위해 CSS 중괄호를 두 번 {{ }} 사용
         f.write(f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
