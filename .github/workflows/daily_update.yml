@@ -14,7 +14,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10' # 💎 최신 버전으로 업그레이드하여 경고 제거
 
     - name: Install dependencies
       run: |
@@ -33,5 +33,7 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add .
+        git commit -m "Manual update: 40 posts with enhanced logging" || exit 0
+        git push
         git commit -m "Manual update: 40 new posts with Gemini Pro" || exit 0
         git push
