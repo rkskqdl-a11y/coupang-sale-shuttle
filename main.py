@@ -30,8 +30,8 @@ def fetch_data(keyword):
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-        # 하루 4번 실행 x 10개 = 40개 (무료 한도 50개 이내 안전)
-        params = {"keyword": keyword, "limit": 10}
+        # 💎 수정: 수집 개수를 10개에서 40개로 늘렸습니다.
+        params = {"keyword": keyword, "limit": 40}
         query_string = urlencode(params)
         url = f"{DOMAIN}{path}?{query_string}"
         headers = {"Authorization": get_authorization_header("GET", path, query_string), "Content-Type": "application/json"}
@@ -70,13 +70,11 @@ def get_random_keyword():
     elif strategy == 2: return f"{random.choice(brands)} {random.choice(products)}"
     else: return f"{random.choice(brands)} {random.choice(products)} {random.choice(specs)}"
 
-# [핵심] Gemini 1.5 Pro (최고 성능) 호출
 def generate_ai_content(product_name):
     if not GEMINI_KEY:
         return f"<p>{product_name} 제품은 현재 가장 인기가 많은 베스트셀러 중 하나입니다.</p>"
     
     try:
-        # 💎 gemini-1.5-pro 사용 (무료 티어는 분당 2회 제한이 있어서 천천히 실행해야 함)
         model = genai.GenerativeModel('gemini-1.5-pro')
         
         prompt = f"""
@@ -162,10 +160,11 @@ def main():
                     </div></body></html>""")
             except: continue
             
-            # [중요] Gemini Pro 무료 한도(분당 2회)를 지키기 위해 35초 대기
+            # 💎 제미나이 무료 버전 한도(1분에 2회 질문)를 지키기 위해 35초씩 대기합니다.
+            # 40개 발행 시 로봇이 종료될 때까지 총 약 25분 정도 소요됩니다.
             time.sleep(35)
 
-    # 4. 메인 화면 & 사이트맵 업데이트
+    # 4. 메인 화면 & 사이트맵 업데이트 (기존과 동일)
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     
     with open("index.html", "w", encoding="utf-8") as f:
