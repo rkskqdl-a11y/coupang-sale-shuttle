@@ -1,39 +1,69 @@
-name: Manual Daily Update (40 Posts)
+name: Scheduled Daily Automation and Manual Dispatch
 
 on:
-  workflow_dispatch: # 수동 실행 버튼 활성화
+  schedule:
+    # 하루 4번 (오전 9시, 오후 3시, 오후 9시, 새벽 3시) 실행하도록 기존 스케줄 유지
+    - cron: '0 0,6,12,18 * * *'
+  
+  workflow_dispatch: # 수동 실행 버튼
+    inputs:
+      log_level:
+        description: '실행 로그 수준'
+        required: false
+        default: 'info'
+        type: choice
+        options: [info, debug, warn]
+
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
-  build:
+  automation-engine:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout Codebase
+        uses: actions/checkout@v4 # 최신 v4 권장
+        with:
+          persist-credentials: true
+          fetch-depth: 1
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10' # 💎 최신 버전으로 업그레이드하여 경고 제거
+      - name: Configure Python Environment
+        uses: actions/setup-python@v5 # 최신 v5 권장
+        with:
+          python-version: '3.12'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests google-generativeai
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # 기존에 사용하던 필수 라이브러리 설치
+          pip install requests google-generativeai
 
-    - name: Run script
-      env:
-        COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
-        COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      run: python main.py
+      - name: Execute Automation Script
+        # 💎 핵심: 기존에 쓰던 API 키들을 여기에 반드시 넣어줘야 합니다.
+        env:
+          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+          COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "🚀 포스팅 생성을 시작합니다..."
+          python main.py # 💎 실제 우리 스크립트를 여기서 실행합니다.
 
-    - name: Commit and push changes
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add .
-        git commit -m "Manual update: 40 posts with enhanced logging" || exit 0
-        git push
-        git commit -m "Manual update: 40 new posts with Gemini Pro" || exit 0
-        git push
+      - name: Synchronize Changes to Repository
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          
+          # 변경된 사항이 있을 때만 안전하게 저장
+          if ! git diff-index --quiet HEAD; then
+            echo "새로운 포스팅이 발견되었습니다. 저장소에 반영합니다."
+            git commit -m "chore: 일일 자동 업데이트 ($(date +'%Y-%m-%d')) [skip ci]"
+            git push
+          else
+            echo "추가된 포스팅이 없습니다. 작업을 종료합니다."
+          fi
+        shell: bash
