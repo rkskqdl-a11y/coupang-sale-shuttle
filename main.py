@@ -29,8 +29,7 @@ def fetch_data(keyword):
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-        # 쿠팡 API 제한인 10개 준수
-        params = {"keyword": keyword, "limit": 10}
+        params = {"keyword": keyword, "limit": 10} # 💎 한 번에 10개 수집
         query_string = urlencode(params)
         url = f"{DOMAIN}{path}?{query_string}"
         headers = {"Authorization": get_authorization_header("GET", path, query_string), "Content-Type": "application/json"}
@@ -59,7 +58,6 @@ def get_random_keyword():
 def generate_ai_content(product_name):
     if not GEMINI_KEY: return "상품 리뷰를 준비 중입니다."
     try:
-        # 💎 안정적인 gemini-1.5-flash 모델 사용
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"상품명 '{product_name}'에 대해 쇼핑 전문가처럼 친절한 해요체로 400자 내외 상세 리뷰를 HTML 없이 작성해줘. 장점 3가지 포함."
         response = model.generate_content(prompt)
@@ -72,10 +70,10 @@ def main():
     os.makedirs("posts", exist_ok=True)
     total_count = 0
     
-    # 💎 10개씩 4번 루프를 돌려 총 40개를 채움
-    for i in range(4):
+    # 💎 [수정] 10개씩 1번만 루프를 돌림 (하루 4번 자동실행 시 총 40개)
+    for i in range(1):
         target = get_random_keyword()
-        print(f"\n🔍 [{i+1}/4] 검색어: {target}")
+        print(f"\n🔍 검색어: {target}")
         products = fetch_data(target)
         if not products: continue
         
@@ -86,7 +84,7 @@ def main():
                 filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{clean_target}_{p_id}.html"
                 if os.path.exists(filename): continue 
                 
-                print(f"💎 ({total_count+1}/40) AI 글쓰기 중...")
+                print(f"💎 ({total_count+1}/10) AI 글쓰기 중...")
                 ai_content = generate_ai_content(item['productName'])
                 
                 with open(filename, "w", encoding="utf-8") as f:
@@ -112,10 +110,10 @@ def main():
                     </div></body></html>""")
                 
                 total_count += 1
-                time.sleep(35) # 제미나이 무료 한도 준수
+                time.sleep(35) # 제미나이 무료 한도(1분 2회) 준수
             except: continue
 
-    # 인덱스 및 사이트맵 업데이트 (생략 없이 유지)
+    # 인덱스 업데이트
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>핫딜 셔틀</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:15px;}} .card{{background:white; padding:20px; border-radius:15px; text-decoration:none; color:#333; border:1px solid #eee;}}</style></head><body><h1 style='text-align:center; color:#e44d26;'>🚀 실시간 핫딜 쇼핑몰</h1><div class='grid'>")
@@ -124,7 +122,7 @@ def main():
             f.write(f"<a class='card' href='posts/{file}'><div>{title}</div><div style='color:#e44d26; font-size:0.8rem; margin-top:10px;'>보기 ></div></a>")
         f.write("</div></body></html>")
 
-    print(f"\n✨ 작업 완료! 총 {total_count}개의 포스팅이 업데이트되었습니다.")
+    print(f"\n✨ 이번 실행 완료! {total_count}개의 포스팅이 추가되었습니다.")
 
 if __name__ == "__main__":
     main()
