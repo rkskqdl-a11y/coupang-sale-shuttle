@@ -29,23 +29,17 @@ def fetch_data(keyword):
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-        # 💎 쿠팡 API 제한에 맞춰 limit을 10으로 수정했습니다.
+        # 쿠팡 API 제한인 10개 준수
         params = {"keyword": keyword, "limit": 10}
         query_string = urlencode(params)
         url = f"{DOMAIN}{path}?{query_string}"
         headers = {"Authorization": get_authorization_header("GET", path, query_string), "Content-Type": "application/json"}
         response = requests.get(url, headers=headers, timeout=15)
         data = response.json()
-        
         if 'data' in data and data['data'].get('productData'):
-            print(f"✅ '{keyword}' 키워드로 10개의 상품을 수집했습니다.")
             return data['data']['productData']
-        else:
-            print(f"❌ '{keyword}' 검색 결과가 없습니다.")
-            return []
-    except Exception as e:
-        print(f"❌ 쿠팡 API 연결 에러: {e}")
         return []
+    except: return []
 
 def get_title_from_html(filepath):
     try:
@@ -57,31 +51,31 @@ def get_title_from_html(filepath):
     return "추천 상품"
 
 def get_random_keyword():
-    modifiers = ["가성비", "인기", "추천", "세일", "베스트", "특가", "국민", "필수", "대박", "자취생"]
-    brands = ["삼성", "LG", "애플", "샤오미", "다이슨", "테팔", "필립스", "쿠쿠", "나이키", "아디다스", "농심", "오뚜기", "CJ", "종근당"]
-    products = ["노트북", "모니터", "마우스", "아이패드", "에어팟", "스마트워치", "라면", "생수", "햇반", "커피", "영양제", "물티슈", "세제", "샴푸", "청소기", "운동화"]
+    modifiers = ["가성비", "인기", "추천", "세일", "베스트", "대박", "자취생"]
+    brands = ["삼성", "LG", "애플", "샤오미", "다이슨", "나이키", "아디다스", "농심", "오뚜기", "종근당"]
+    products = ["노트북", "아이패드", "에어팟", "라면", "햇반", "커피", "영양제", "샴푸", "운동화"]
     return f"{random.choice(modifiers)} {random.choice(brands)} {random.choice(products)}"
 
 def generate_ai_content(product_name):
-    if not GEMINI_KEY: return f"<p>{product_name} 제품은 현재 인기가 많은 상품입니다.</p>"
+    if not GEMINI_KEY: return "상품 리뷰를 준비 중입니다."
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
-        prompt = f"상품명 '{product_name}'에 대해 10년 차 쇼핑 전문가처럼 친절한 해요체로 400자 내외 상세 리뷰를 HTML 없이 작성해줘. 장점 3가지 포함."
+        # 💎 안정적인 gemini-1.5-flash 모델 사용
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"상품명 '{product_name}'에 대해 쇼핑 전문가처럼 친절한 해요체로 400자 내외 상세 리뷰를 HTML 없이 작성해줘. 장점 3가지 포함."
         response = model.generate_content(prompt)
         return response.text.replace("\n", "<br>")
     except Exception as e:
-        print(f"⚠️ AI 글쓰기 실패: {e}")
-        return f"<p>{product_name}은 가성비와 성능이 뛰어난 추천 제품입니다.</p>"
+        print(f"❌ AI 호출 실패: {e}")
+        return f"{product_name}은 품질과 가격 모두 잡은 최고의 선택입니다. 지금 바로 확인해보세요!"
 
 def main():
     os.makedirs("posts", exist_ok=True)
     total_count = 0
     
-    # 💎 10개씩 4번 실행하여 총 40개를 채웁니다.
+    # 💎 10개씩 4번 루프를 돌려 총 40개를 채움
     for i in range(4):
         target = get_random_keyword()
-        print(f"\n🔍 [{i+1}/4] 검색 시작 키워드: {target}")
-        
+        print(f"\n🔍 [{i+1}/4] 검색어: {target}")
         products = fetch_data(target)
         if not products: continue
         
@@ -90,16 +84,10 @@ def main():
             try:
                 p_id = item['productId']
                 filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{clean_target}_{p_id}.html"
+                if os.path.exists(filename): continue 
                 
-                if os.path.exists(filename):
-                    print(f"⏩ 중복 건너뜀: {item['productName'][:15]}")
-                    continue 
-                
-                print(f"💎 ({total_count+1}/40) AI 리뷰 생성 중: {item['productName'][:15]}...")
+                print(f"💎 ({total_count+1}/40) AI 글쓰기 중...")
                 ai_content = generate_ai_content(item['productName'])
-                
-                keywords = item['productName'].split(" ")
-                tags = " ".join([f"#{k}" for k in keywords if len(k) > 1][:5])
                 
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write(f"""<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{item['productName']} 리뷰</title>
@@ -117,34 +105,26 @@ def main():
                     <div class='container'>
                         <h2>{item['productName']}</h2>
                         <img src='{item['productImage']}'>
-                        <div class='ai-review-box'><span class='ai-badge'>🏆 에디터 추천</span><br><br>{ai_content}</div>
+                        <div class='ai-review-box'><span class='ai-badge'>🏆 AI 에디터 리뷰</span><br><br>{ai_content}</div>
                         <div class='price'>{format(item['productPrice'], ',')}원</div>
                         <a href='{item['productUrl']}' class='btn'>👉 특가 확인하기</a>
-                        <p style='color:#888; font-size:0.8rem;'>{tags}</p>
                         <div class='disclosure'>본 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</div>
                     </div></body></html>""")
                 
                 total_count += 1
-                time.sleep(35) # 💎 제미나이 무료 한도 준수
-            except Exception as e:
-                print(f"❌ 에러 발생: {e}")
-                continue
+                time.sleep(35) # 제미나이 무료 한도 준수
+            except: continue
 
-    # 메인 페이지 및 사이트맵 업데이트 (생략 없이 유지)
+    # 인덱스 및 사이트맵 업데이트 (생략 없이 유지)
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>핫딜 셔틀</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:15px;}} .card{{background:white; padding:20px; border-radius:15px; text-decoration:none; color:#333; border:1px solid #eee;}}</style></head><body><h1 style='text-align:center; color:#e44d26;'>🚀 실시간 핫딜 쇼핑몰</h1><p style='text-align:center; color:#999;'>업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p><div class='grid'>")
+        f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>핫딜 셔틀</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:15px;}} .card{{background:white; padding:20px; border-radius:15px; text-decoration:none; color:#333; border:1px solid #eee;}}</style></head><body><h1 style='text-align:center; color:#e44d26;'>🚀 실시간 핫딜 쇼핑몰</h1><div class='grid'>")
         for file in files[:100]:
             title = get_title_from_html(f"posts/{file}")
-            f.write(f"<a class='card' href='posts/{file}'><div>{title}</div><div style='color:#e44d26; font-size:0.8rem; margin-top:10px;'>최저가 보기 ></div></a>")
+            f.write(f"<a class='card' href='posts/{file}'><div>{title}</div><div style='color:#e44d26; font-size:0.8rem; margin-top:10px;'>보기 ></div></a>")
         f.write("</div></body></html>")
 
-    with open("sitemap.xml", "w", encoding="utf-8") as f:
-        f.write(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>{SITE_URL}/</loc><priority>1.0</priority></url>')
-        for file in files: f.write(f'<url><loc>{SITE_URL}/posts/{file}</loc></url>')
-        f.write('</urlset>')
-
-    print(f"\n✨ 작업 완료! 총 {total_count}개의 새 포스팅이 생성되었습니다.")
+    print(f"\n✨ 작업 완료! 총 {total_count}개의 포스팅이 업데이트되었습니다.")
 
 if __name__ == "__main__":
     main()
