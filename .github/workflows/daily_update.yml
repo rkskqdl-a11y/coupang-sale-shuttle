@@ -30,8 +30,8 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          # 💎 google-generativeai 대신 최신형인 google-genai를 설치합니다.
-          pip install requests google-genai
+          # 💎 복잡한 AI 라이브러리 대신, 가장 기본적이고 튼튼한 requests만 사용합니다.
+          pip install requests
 
       - name: Execute Automation Script
         env:
