@@ -32,7 +32,6 @@ jobs:
           python -m pip install --upgrade pip
           # 💎 복잡한 AI 라이브러리 대신, 가장 기본적이고 튼튼한 requests만 사용합니다.
           pip install requests
-
       - name: Execute Automation Script
         env:
           COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
@@ -40,8 +39,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "🚀 포스팅 생성을 시작합니다..."
+          # 💎 아래 한 줄이 반드시 있어야 로봇이 작동합니다!
           python main.py
-
       - name: Synchronize Changes to Repository
         run: |
           git config --local user.name "github-actions[bot]"
