@@ -9,7 +9,7 @@ GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
 
 def generate_ai_content(item):
-    """💎 1,500자 이상의 초장문 칼럼 생성"""
+    """💎 제미나이 Pro 1.5를 활용한 1,500자 이상의 고품질 칼럼 생성"""
     if not GEMINI_KEY: return "상세 분석 데이터 준비 중"
     name = item.get('productName')
     price = format(item.get('productPrice', 0), ',')
@@ -17,30 +17,39 @@ def generate_ai_content(item):
     short_name = " ".join(clean_name.split()[:4]).strip()
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    prompt = f"상품 '{short_name}'(가격 {price}원)에 대해 전문 테크 칼럼을 1,500자 이상 장문으로 작성해줘. <h3> 태그를 사용하고 HTML만 사용해. '할인' 언급 절대 금지."
+    prompt = f"상품 '{short_name}'(가격 {price}원)에 대해 전문 테크/리뷰 칼럼을 1,500자 이상 장문으로 작성해줘. <h3> 태그를 사용하고 HTML만 사용해. '할인' 언급 절대 금지."
 
     try:
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        response = requests.post(url, json=payload, timeout=55)
+        response = requests.post(url, json=payload, timeout=60)
         res_data = response.json()
         if 'candidates' in res_data and len(res_data['candidates']) > 0:
             return res_data['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>").strip()
     except: pass
     return f"<h3>🔍 전문가 분석</h3>{short_name}은 {price}원대에서 만날 수 있는 최상의 선택입니다."
 
-def fetch_data(keyword, page_num):
-    """💎 페이지 번호를 지정하여 검색 결과의 깊은 곳까지 탐색합니다."""
-    try:
-        DOMAIN = "https://api-gateway.coupang.com"
-        path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-        # 1페이지가 아닌 랜덤하게 선택된 깊은 페이지를 가져옵니다.
-        params = {"keyword": keyword, "limit": 20, "page": page_num}
-        query_string = urlencode(params)
-        url = f"{DOMAIN}{path}?{query_string}"
-        headers = {"Authorization": get_authorization_header("GET", path, query_string), "Content-Type": "application/json"}
-        response = requests.get(url, headers=headers, timeout=15)
-        return response.json().get('data', {}).get('productData', [])
-    except: return []
+def fetch_data_with_paging(keyword):
+    """💎 상품이 발견될 때까지 랜덤 페이지를 뒤져 전수 조사를 수행합니다."""
+    DOMAIN = "https://api-gateway.coupang.com"
+    path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
+    
+    # 1~50페이지 중 5개를 무작위로 골라 순차적으로 탐색합니다.
+    target_pages = random.sample(range(1, 51), 5)
+    
+    for page in target_pages:
+        try:
+            params = {"keyword": keyword, "limit": 20, "page": page}
+            query_string = urlencode(params)
+            url = f"{DOMAIN}{path}?{query_string}"
+            headers = {"Authorization": get_authorization_header("GET", path, query_string), "Content-Type": "application/json"}
+            response = requests.get(url, headers=headers, timeout=15)
+            products = response.json().get('data', {}).get('productData', [])
+            
+            if products:
+                print(f"✅ [{keyword}] 검색 - 페이지 {page}에서 상품 발견!")
+                return products
+        except: continue
+    return []
 
 def get_authorization_header(method, path, query_string):
     datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
@@ -51,32 +60,24 @@ def get_authorization_header(method, path, query_string):
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # 💎 [초세분화 롱테일 키워드] 겹칠 수 없는 방대한 키워드 풀
+    # 💎 [일반 키워드 풀] 상품군이 수만 개에 달하는 대표 명사 위주
     keyword_pool = [
-        "남성 린넨 셔츠 네이비", "오버핏 린넨 셔츠 흰색", "차이나카라 린넨 셔츠 95", "긴팔 린넨 셔츠 슬림핏",
-        "반팔 린넨 셔츠 스트라이프", "원룸 미니 가습기 저소음", "맥북 에어 M3 투명 케이스", "기계식 키보드 갈축 풀배열",
-        "노이즈캔슬링 무선 헤드폰 블랙", "홈트 전신 거울 대형", "암막 커튼 베이지 2장세트", "캠핑용 경량 체어 릴렉스형",
-        "강아지 가수분해 사료 연어", "고양이 두부모래 무향", "스테인리스 304 프라이팬 28cm", "C타입 고속충전 케이블 2m"
+        "린넨셔츠", "세탁기", "가습기", "노트북", "청소기", "공기청정기", "커피머신", "운동화", "캠핑의자", 
+        "단백질보충제", "선크림", "면도기", "블루투스이어폰", "모니터", "키보드", "침대매트리스", "프라이팬"
     ]
     
     target = random.choice(keyword_pool)
-    # 💎 1~50페이지 중 무작위 선택하여 전수 조사를 수행합니다.
-    random_page = random.randint(1, 50)
-    print(f"🚀 [페이지 {random_page}] 전수 조사 시작: {target}")
+    print(f"🚀 일반 카테고리 전수 조사 시작: {target}")
     
-    products = fetch_data(target, random_page)
-    # 빠른 중복 체크를 위해 Set 자료형 사용
+    products = fetch_data_with_paging(target)
+    # 중복 체크 효율화를 위한 Set 구성
     existing_ids = {f.split('_')[-1].replace('.html', '') for f in os.listdir("posts") if '_' in f}
     
     success_count = 0
-    skip_count = 0
-    
     for item in products:
         try:
             p_id = str(item['productId'])
-            if p_id in existing_ids:
-                skip_count += 1
-                continue 
+            if p_id in existing_ids: continue # 이미 올린 상품이면 패스
 
             filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{p_id}.html"
             ai_content = generate_ai_content(item)
@@ -84,20 +85,19 @@ def main():
             price = format(item['productPrice'], ',')
             
             with open(filename, "w", encoding="utf-8") as f:
-                f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>{item['productName']} 리뷰</title><style>body{{font-family:sans-serif; background:#f8f9fa; padding:20px; color:#333; line-height:2.2;}} .card{{max-width:700px; margin:auto; background:white; padding:50px; border-radius:30px; box-shadow:0 20px 50px rgba(0,0,0,0.05);}} h3{{color:#e44d26; margin-top:40px; border-left:6px solid #e44d26; padding-left:20px;}} img{{width:100%; border-radius:20px; margin:30px 0;}} .price-box{{text-align:center; background:#fff5f2; padding:30px; border-radius:20px; margin:40px 0;}} .p-val{{font-size:2.5rem; color:#e44d26; font-weight:bold;}} .buy-btn{{display:block; background:#e44d26; color:white; text-align:center; padding:25px; text-decoration:none; border-radius:60px; font-weight:bold; font-size:1.3rem;}}</style></head><body><div class='card'><h2>{item['productName']}</h2><img src='{img}' alt='{item['productName']}'><div class='content'>{ai_content}</div><div class='price-box'><div class='p-val'>{price}원</div></div><a href='{item['productUrl']}' class='buy-btn'>🛍️ 상세 정보 확인하기</a></div></body></html>")
+                f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>{item['productName']} 리뷰</title><style>body{{font-family:sans-serif; background:#f8f9fa; padding:20px; color:#333; line-height:2.2;}} .card{{max-width:700px; margin:auto; background:white; padding:50px; border-radius:30px; box-shadow:0 20px 50px rgba(0,0,0,0.05);}} h3{{color:#e44d26; margin-top:40px; border-left:6px solid #e44d26; padding-left:20px;}} img{{width:100%; border-radius:20px; margin:30px 0;}} .price-box{{text-align:center; background:#fff5f2; padding:30px; border-radius:20px; margin:40px 0;}} .p-val{{font-size:2.5rem; color:#e44d26; font-weight:bold;}} .buy-btn{{display:block; background:#e44d26; color:white; text-align:center; padding:25px; text-decoration:none; border-radius:60px; font-weight:bold; font-size:1.3rem;}}</style></head><body><div class='card'><h2>{item['productName']}</h2><img src='{img}'><div class='content'>{ai_content}</div><div class='price-box'><div class='p-val'>{price}원</div></div><a href='{item['productUrl']}' class='buy-btn'>🛍️ 상세 정보 확인하기</a></div></body></html>")
             
             success_count += 1
-            print(f"✅ 생성 완료 ({success_count}/10): {p_id}")
-            time.sleep(30)
+            print(f"✅ 포스팅 생성 완료 ({success_count}/10): {p_id}")
+            time.sleep(35) # Gemini 및 Coupang API 할당량 준수
             if success_count >= 10: break
         except: continue
 
-    print(f"📊 최종 결과: {success_count}개 생성, {skip_count}개 중복 건너뜀")
-
-    # 💎 [SEO 동기화] 새로운 글이 없더라도 사이트맵/인덱스는 무조건 갱신
+    # 💎 [SEO 동기화] 새로운 글이 없더라도 사이트맵과 인덱스는 무조건 갱신
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     now_iso = datetime.now().strftime("%Y-%m-%d")
 
+    # 사이트맵 네임스페이스 오류 해결
     sitemap_xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     sitemap_xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     sitemap_xml += f'  <url><loc>{SITE_URL}/</loc><lastmod>{now_iso}</lastmod><priority>1.0</priority></url>\n'
@@ -109,8 +109,9 @@ def main():
     with open("robots.txt", "w", encoding="utf-8") as f:
         f.write(f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml\n")
 
+    # index.html (진짜 상품명 추출 및 갱신)
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>전문 쇼핑 매거진</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:30px;}} .card{{background:white; padding:30px; border-radius:25px; text-decoration:none; color:#333; box-shadow:0 10px 20px rgba(0,0,0,0.05); height:150px; display:flex; flex-direction:column; justify-content:space-between;}} .title{{font-weight:bold; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; font-size:0.9rem;}}</style></head><body><h1 style='text-align:center;'>🚀 무한 쇼핑 큐레이션</h1><div class='grid'>")
+        f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>전문 쇼핑 매거진</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:30px;}} .card{{background:white; padding:30px; border-radius:25px; text-decoration:none; color:#333; box-shadow:0 10px 20px rgba(0,0,0,0.05); height:150px; display:flex; flex-direction:column; justify-content:space-between;}} .title{{font-weight:bold; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; font-size:0.9rem;}}</style></head><body><h1 style='text-align:center;'>🚀 카테고리 전수 조사 매거진</h1><div class='grid'>")
         for file in files[:120]:
             try:
                 with open(f"posts/{file}", 'r', encoding='utf-8') as fr:
