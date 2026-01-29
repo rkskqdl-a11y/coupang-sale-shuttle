@@ -35,10 +35,9 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 💎 'add .' 사이의 공백을 정확히 유지합니다.
           git add .
           if ! git diff-index --quiet HEAD; then
-            # 💎 웹사이트 배포를 위해 [skip ci]를 제거했습니다.
+            # 💎 배포 차단을 막기 위해 [skip ci]를 삭제한 순수 메시지만 사용합니다.
             git commit -m "Auto-update: New expert reviews $(date +'%Y-%m-%d')"
             git push
           else
