@@ -28,14 +28,13 @@ def generate_ai_content(item):
             return text.replace("\n", "<br>").strip()
     except: pass
 
-    # AI 실패 시 대체 문구 (300자 이상 정성스러운 장문으로 보강)
+    # AI 실패 시 대체 문구 (장문 보강)
     return f"""
     <h3>🔍 전문가의 시선: 제품 정밀 분석</h3>
     {short_name} 모델은 현재 {price}원의 가격대에서 만날 수 있는 최상의 기술력이 집약된 모델입니다. 
     세련된 디자인과 탄탄한 기본기, 그리고 사용자를 배려한 세심한 설계가 돋보입니다. 
     실제 환경에서의 안정적인 퍼포먼스는 물론, 공간의 가치를 높여주는 미학적 완성도까지 갖추고 있어 
-    해당 카테고리 내에서 독보적인 가치를 제공할 것으로 분석됩니다. 
-    특히 마감 퀄리티와 소재의 선택에서 느껴지는 디테일은 장기간 사용 시에도 변함없는 만족감을 선사할 것입니다.
+    해당 카테고리 내에서 독보적인 가치를 제공할 것으로 분석됩니다.
     """
 
 def fetch_data(keyword):
@@ -58,7 +57,7 @@ def get_authorization_header(method, path, query_string):
 
 def main():
     os.makedirs("posts", exist_ok=True)
-    keyword_pool = ["게이밍 노트북", "공기청정기 추천", "캠핑 의자", "무선 헤드셋", "캡슐 커피머신", "기계식 키보드"]
+    keyword_pool = ["게이밍 노트북", "공기청정기 추천", "캠핑 의자", "무선 헤드셋", "캡슐 커피머신", "아이패드 프로"]
     target = random.choice(keyword_pool)
     print(f"🚀 작업 시작: {target}")
     products = fetch_data(target)
@@ -73,7 +72,7 @@ def main():
 
             filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{p_id}.html"
             ai_content = generate_ai_content(item)
-            img = item['productImage'].split('?')[0] # 💎 이미지 주소 정제
+            img = item['productImage'].split('?')[0]
             price = format(item['productPrice'], ',')
             
             with open(filename, "w", encoding="utf-8") as f:
@@ -85,7 +84,7 @@ def main():
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     now_iso = datetime.now().strftime("%Y-%m-%d")
 
-    # XML 표준 규격과 네임스페이스를 정확히 선언 (공백 없이 시작)
+    # XML 표준 규격과 네임스페이스 선언 (xmlns 추가)
     sitemap_xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
     sitemap_xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     sitemap_xml += f'  <url>\n    <loc>{SITE_URL}/</loc>\n    <lastmod>{now_iso}</lastmod>\n    <priority>1.0</priority>\n  </url>\n'
@@ -99,12 +98,12 @@ def main():
     with open("robots.txt", "w", encoding="utf-8") as f:
         f.write(f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml\n")
 
-    # index.html 업데이트 (실제 상품 제목 추출 강화)
+    # index.html 업데이트 (파일 제목 추출 로직 강화)
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>전문 쇼핑 매거진</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:30px;}} .card{{background:white; padding:30px; border-radius:25px; text-decoration:none; color:#333; box-shadow:0 10px 20px rgba(0,0,0,0.05); height:150px; display:flex; flex-direction:column; justify-content:space-between;}} .title{{font-weight:bold; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; font-size:0.9rem;}}</style></head><body><h1 style='text-align:center;'>🚀 핫딜 셔틀 매거진</h1><div class='grid'>")
         for file in files[:120]:
             try:
-                # 💎 파일 제목 추출 로직 강화
+                # 💎 파일 내부의 <title> 태그에서 상품명을 읽어옵니다.
                 with open(f"posts/{file}", 'r', encoding='utf-8') as fr:
                     content = fr.read()
                     match = re.search(r'<title>(.*?)</title>', content)
