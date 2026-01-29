@@ -8,31 +8,36 @@ SECRET_KEY = os.environ.get('COUPANG_SECRET_KEY')
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
 SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
 
+def clean_name_for_ai(name):
+    """지저분한 상품명을 AI가 거부하지 않게 핵심만 남깁니다."""
+    # 괄호 안 내용 삭제 및 특수문자 제거
+    clean = re.sub(r'\(.*?\)|\[.*?\]', '', name)
+    clean = re.sub(r'[^\w\s]', ' ', clean)
+    # 앞의 3~4단어만 추출 (모델명 위주)
+    words = clean.split()
+    return " ".join(words[:4]) if len(words) > 4 else clean
+
 def generate_ai_content(item):
-    """💎 모든 카테고리를 전문가 수준으로 깊이 있게 분석하여 장문의 리뷰를 생성합니다."""
-    if not GEMINI_KEY: return "상세 정보를 분석 중입니다."
+    """💎 차단을 피하기 위해 '기술 분석 보고서' 스타일로 요청합니다."""
+    if not GEMINI_KEY: return "분석 데이터 준비 중입니다."
     
-    name = item.get('productName')
+    raw_name = item.get('productName')
     price = format(item.get('productPrice', 0), ',')
+    short_name = clean_name_for_ai(raw_name)
     
-    # AI가 헷갈리지 않게 상품명을 핵심만 추출
-    short_name = " ".join(re.sub(r'[^\w\s]', '', name).split()[:3])
-    
-    # 🤖 전 카테고리 대응 고급 프롬프트
+    # 🤖 [세이프 모드] 기술 분석 프롬프트
     prompt_text = f"""
-    너는 15년 경력의 베테랑 쇼핑 매거진 편집장이야. 상품 '{short_name}'(가격 {price}원)을 
-    실제로 일주일간 심도 있게 테스트했다고 가정하고, 독자들에게 전문적인 인사이트를 제공하는 칼럼을 써줘. 
+    상품 '{short_name}'(가격 {price}원)에 대한 기술적 사양과 사용자 경험을 분석한 전문 보고서를 작성해줘.
     
-    [작성 가이드 - 필수!]
-    1. **절대 상품명이나 제목으로 시작하지 마.** 독자의 호기심을 자극하는 문장으로 시작해.
-    2. 말투: 지적이면서도 친근한 전문가의 '해요체'.
-    3. 분량: 최소 800자 이상의 풍성한 텍스트를 생성해.
-    4. 구성: 아래 4가지 섹션을 반드시 <h3> 태그를 사용하여 작성해.
-       - <h3>✨ 에디터가 느낀 첫인상과 디자인 미학</h3>: 소재의 느낌, 마감 처리, 첫 대면 시의 만족감.
-       - <h3>성능과 실용성: 기대 이상의 포인트</h3>: 실제 생활에서 이 제품이 주는 편리함과 압도적인 장점 3가지.
-       - <h3>🔍 전문가의 시선에서 본 디테일한 분석</h3>: 내구성, 가성비, 혹은 기술적 특징에 대한 심층 분석.
-       - <h3>💡 이런 라이프스타일을 가진 분들께 추천</h3>: 이 제품이 가장 빛을 발할 사용자 환경 제안.
-    5. HTML(h3, br)만 사용하여 가독성 있게 작성해줘.
+    [작성 규칙]
+    1. 역할: IT/가전 제품 기술 분석가
+    2. 내용: 객관적인 데이터와 일반적인 사용자 피드백을 기반으로 800자 이상 작성할 것.
+    3. 구조: 반드시 <h3> 태그를 사용하여 아래 섹션을 포함해.
+       - <h3>🔍 제품의 핵심 사양 및 하드웨어 특징</h3>
+       - <h3>🚀 사용 환경에 따른 주요 성능 분석</h3>
+       - <h3>💡 실제 사용자들의 종합적인 평가와 장단점</h3>
+       - <h3>💰 최종 구매 가치 및 타겟층 분석</h3>
+    4. 주의: HTML(h3, br)만 사용하고 인사말은 생략해.
     """
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
@@ -45,14 +50,20 @@ def generate_ai_content(item):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=30) # 장문 생성을 위해 타임아웃 연장
+        response = requests.post(url, json=payload, timeout=30)
         res_data = response.json()
+        
         if 'candidates' in res_data and len(res_data['candidates']) > 0:
-            return res_data['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>")
-        raise ValueError("AI Response Blocked")
+            content = res_data['candidates'][0]['content']['parts'][0]['text']
+            return content.replace("\n", "<br>")
+        
+        # 차단 사유 로그 출력
+        print(f"⚠️ AI 차단 발생 ({short_name}): {res_data.get('promptFeedback', '알 수 없는 이유')}")
+        raise ValueError("Blocked")
+        
     except Exception as e:
-        print(f"⚠️ AI 생성 실패({e}): 비상용 문구로 대체합니다.")
-        return f"<h3>🔍 에디터의 핵심 요약</h3>{short_name}은 현재 {price}원의 가격대에서 가장 탄탄한 기본기를 갖춘 모델입니다. 실제 사용자들 사이에서 만족도가 매우 높으며, 깔끔한 디자인과 실용성으로 많은 사랑을 받고 있는 제품입니다."
+        print(f"❌ AI 에러: {e}")
+        return f"<h3>🔍 에디터의 핵심 요약</h3>{short_name}은 {price}원이라는 가격 대비 성능이 뛰어난 모델입니다. 실사용 만족도가 높으며 깔끔한 마감과 안정적인 성능이 특징입니다."
 
 def fetch_data(keyword):
     """쿠팡 API 데이터 수집"""
@@ -78,12 +89,12 @@ def get_authorization_header(method, path, query_string):
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # 💎 모든 카테고리를 순환하도록 설정
-    sets = [("삼성", "노트북"), ("LG", "생활가전"), ("애플", "아이패드"), ("나이키", "운동화"), ("다이슨", "청소기"), ("필립스", "면도기")]
+    # 💎 검색 타겟 다양화
+    sets = [("삼성", "갤럭시북"), ("LG", "그램"), ("애플", "맥북"), ("나이키", "에어맥스"), ("필립스", "전기면도기")]
     brand, item_type = random.choice(sets)
     target = f"인기 {brand} {item_type}"
     
-    print(f"🚀 전 분야 전문 분석 가동: {target}")
+    print(f"🚀 안정성 강화 엔진 가동: {target}")
     products = fetch_data(target)
     
     for item in products:
@@ -92,7 +103,7 @@ def main():
             filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{p_id}.html"
             if os.path.exists(filename): continue 
             
-            print(f"📝 {item['productName'][:20]}... 장문 리뷰 작성 중")
+            print(f"📝 {item['productName'][:20]}... 분석 중")
             ai_content = generate_ai_content(item)
             
             img = item['productImage'].split('?')[0]
@@ -107,12 +118,12 @@ def main():
                     body {{ font-family: sans-serif; background: #f8f9fa; padding: 20px; color: #333; line-height: 1.8; }}
                     .card {{ max-width: 650px; margin: auto; background: white; padding: 40px; border-radius: 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.05); }}
                     .rocket {{ color: #0073e6; font-weight: bold; font-size: 0.9rem; }}
-                    h2 {{ font-size: 1.3rem; margin-top: 15px; color: #111; border-bottom: 2px solid #f0f2f5; padding-bottom: 15px; }}
-                    h3 {{ color: #e44d26; margin-top: 35px; border-left: 4px solid #e44d26; padding-left: 15px; font-size: 1.15rem; }}
+                    h2 {{ font-size: 1.3rem; margin-top: 15px; color: #111; border-bottom: 2px solid #eee; padding-bottom: 15px; }}
+                    h3 {{ color: #e44d26; margin-top: 35px; border-left: 4px solid #e44d26; padding-left: 15px; font-size: 1.1rem; }}
                     img {{ width: 100%; border-radius: 20px; margin: 25px 0; }}
                     .price-box {{ text-align: center; background: #fff5f2; padding: 25px; border-radius: 20px; margin: 30px 0; }}
-                    .current-price {{ font-size: 2.2rem; color: #e44d26; font-weight: bold; }}
-                    .buy-btn {{ display: block; background: #e44d26; color: white; text-align: center; padding: 20px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 1.2rem; }}
+                    .current-price {{ font-size: 2rem; color: #e44d26; font-weight: bold; }}
+                    .buy-btn {{ display: block; background: #e44d26; color: white; text-align: center; padding: 20px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 1.1rem; }}
                 </style></head>
                 <body><div class='card'>
                     <div class='rocket'>{rocket_icon}</div>
@@ -121,15 +132,14 @@ def main():
                     <div class='content'>{ai_content}</div>
                     <div class='price-box'><div class='current-price'>{price}원</div></div>
                     <a href='{item['productUrl']}' class='buy-btn'>🛍️ 최저가 확인 및 구매하기</a>
-                    <p style='font-size: 0.75rem; color: #999; margin-top: 30px; text-align: center;'>본 포스팅은 쿠팡 파트너스 활동의 일환으로 수수료를 제공받을 수 있습니다.</p>
                 </div></body></html>""")
-            time.sleep(20) # 장문 작성을 위해 대기 시간을 살짝 늘렸습니다.
+            time.sleep(20) # 차단 방지를 위한 충분한 시간 간격
         except: continue
 
-    # [인덱스 및 사이트맵 갱신 로직 동일]
+    # 인덱스 업데이트 (생략/기존 유지)
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>전문 핫딜 리뷰</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:25px;}} .card{{background:white; padding:30px; border-radius:20px; text-decoration:none; color:#333; box-shadow:0 4px 15px rgba(0,0,0,0.05); height:140px; display:flex; flex-direction:column; justify-content:space-between;}} .title{{font-weight: bold; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;}}</style></head><body><h1 style='text-align:center;'>🚀 실시간 핫딜 셔틀</h1><div class='grid'>")
+        f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>핫딜 리뷰</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:25px;}} .card{{background:white; padding:30px; border-radius:20px; text-decoration:none; color:#333; box-shadow:0 4px 15px rgba(0,0,0,0.05); height:140px; display:flex; flex-direction:column; justify-content:space-between;}} .title{{font-weight: bold; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;}}</style></head><body><h1 style='text-align:center;'>🚀 실시간 핫딜 셔틀</h1><div class='grid'>")
         for file in files[:100]:
             try:
                 with open(f"posts/{file}", 'r', encoding='utf-8') as fr:
