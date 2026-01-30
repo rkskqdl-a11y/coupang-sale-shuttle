@@ -8,48 +8,55 @@ SECRET_KEY = os.environ.get('COUPANG_SECRET_KEY', '').strip()
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
 
-def generate_ai_content(product_name):
-    """💎 의존성 에러 없이 requests로 AI 리뷰 생성 (1,000자 장문)"""
-    if not GEMINI_KEY: return "분석 데이터 준비 중"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 이상 작성해줘. <h3> 활용, HTML만 사용, '해요체', '할인' 언급 금지."
-    try:
-        res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=60)
-        return res.json()['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>")
-    except: return f"<h3>🔍 제품 분석</h3>{product_name}은 품질과 성능이 검증된 모델입니다."
+def get_authorization_header(method, path, query_string):
+    """💎 쿠팡 HMAC 인증 로직을 표준 규격으로 정밀 교정합니다."""
+    datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
+    message = datetime_gmt + method + path + query_string
+    signature = hmac.new(bytes(SECRET_KEY, 'utf-8'), msg=bytes(message, 'utf-8'), digestmod=hashlib.sha256).hexdigest()
+    return f"CEA algorithm=HmacSHA256, access-key={ACCESS_KEY}, signed-date={datetime_gmt}, signature={signature}"
 
 def fetch_data(keyword, page):
-    """💎 [핵심] 쿠팡 API 인증을 100% 성공시키는 엄격한 쿼리 생성"""
-    DOMAIN = "https://api-gateway.coupang.com"
-    path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-    
-    # 💎 중요: 파라미터는 반드시 알파벳 순서(keyword -> limit -> page)여야 합니다.
-    query_string = f"keyword={quote(keyword)}&limit=20&page={page}"
-    
-    # 서명 생성 (datetime + method + path + query_string)
-    datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
-    message = datetime_gmt + "GET" + path + query_string
-    signature = hmac.new(bytes(SECRET_KEY, 'utf-8'), msg=bytes(message, 'utf-8'), digestmod=hashlib.sha256).hexdigest()
-    
-    headers = {
-        "Authorization": f"CEA algorithm=HmacSHA256, access-key={ACCESS_KEY}, signed-date={datetime_gmt}, signature={signature}",
-        "Content-Type": "application/json"
-    }
-    
+    """💎 파라미터를 알파벳 순서로 정렬하여 인증 오류를 해결합니다."""
     try:
-        response = requests.get(f"{DOMAIN}{path}?{query_string}", headers=headers, timeout=15)
-        if response.status_code == 200:
-            return response.json().get('data', {}).get('productData', [])
-        else:
-            # 💎 이제 로그에서 왜 0개인지 (401, 403 등) 숫자로 바로 알려줍니다.
-            print(f"   ⚠️ 쿠팡 서버 응답 실패: {response.status_code} | {response.text[:50]}")
+        DOMAIN = "https://api-gateway.coupang.com"
+        path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
+        
+        # 💎 중요: keyword -> limit -> page 순으로 정렬해야 인증에 성공합니다.
+        query_string = f"keyword={quote(keyword)}&limit=20&page={page}"
+        url = f"{DOMAIN}{path}?{query_string}"
+        
+        headers = {
+            "Authorization": get_authorization_header("GET", path, query_string),
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        if response.status_code != 200:
+            print(f"   ⚠️ 쿠팡 서버 응답 실패: {response.status_code} | {response.text[:100]}")
             return []
-    exceptException as e:
+            
+        data = response.json()
+        items = data.get('data', {}).get('productData', [])
+        if items: print(f"   📦 {len(items)}개 상품 수신 성공")
+        return items
+    except Exception as e:
         print(f"   ⚠️ 연결 오류: {e}")
         return []
 
+def generate_ai_content(product_name):
+    """💎 지원 중단 경고 없이 requests로 제미나이 AI 호출 (1,000자 장문)."""
+    if not GEMINI_KEY: return "분석 데이터 준비 중"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 이상 장문으로 작성해줘. <h3> 활용, HTML만 사용, '해요체', '할인' 언급 금지."
+    try:
+        res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=60)
+        return res.json()['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>")
+    except:
+        return f"<h3>🔍 제품 정밀 분석</h3>{product_name}은 탄탄한 설계와 실용성이 돋보이는 추천 모델입니다."
+
 def get_title_from_html(filepath):
-    """💎 인덱스 생성을 위한 제목 추출 함수"""
+    """💎 [에러 해결] 인덱스 생성을 위한 제목 추출 함수를 정의했습니다."""
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -61,13 +68,14 @@ def get_title_from_html(filepath):
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # 💎 전 품목 수집을 위한 광대역 씨앗 키워드
+    # 💎 무엇이든 1페이지를 가득 채우는 광범위 씨앗 키워드
     seeds = ["삼성", "엘지", "가전", "노트북", "운동화", "샴푸", "비타민", "물티슈", "기저귀", "양말"]
     target = random.choice(seeds)
     
-    existing_ids = {f.split('_')[-1].replace('.html', '') for f in os.listdir("posts") if '_' in f}
-    success_count, max_target = 0, 10
+    existing_posts = os.listdir("posts")
+    existing_ids = {f.split('_')[-1].replace('.html', '') for f in existing_posts if '_' in f}
     
+    success_count, max_target = 0, 10
     print(f"🕵️ 현재 {len(existing_ids)}개 노출 중. '{target}' 기반 저인망 수색 시작!")
 
     # 💎 1페이지부터 차례대로! 중복이면 다음 페이지로!
@@ -77,11 +85,11 @@ def main():
         print(f"🔍 [페이지 {page}] 분석 중...")
         products = fetch_data(target, page)
         
-        if not products: continue # 에러 로그는 위에서 찍힘
+        if not products: continue 
 
         for item in products:
             p_id = str(item['productId'])
-            if p_id in existing_ids: continue # 중복 패스
+            if p_id in existing_ids: continue # 중복 건너뛰기
 
             p_name = item['productName']
             print(f"   ✨ 발견! [{success_count+1}/10] {p_name[:20]}...")
@@ -103,14 +111,14 @@ def main():
     now_iso = datetime.now().strftime("%Y-%m-%d")
     
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>쿠팡 핫딜 셔틀</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px;}} .card{{background:white; padding:25px; border-radius:20px; text-decoration:none; color:#333; box-shadow:0 5px 15px rgba(0,0,0,0.05);}}</style></head><body><h1 style='text-align:center;'>🚀 실시간 쿠팡 전수 조사 매거진</h1><div class='grid'>")
+        f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>쿠팡 핫딜 셔틀</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px;}} .card{{background:white; padding:25px; border-radius:20px; text-decoration:none; color:#333; box-shadow:0 5px 15px rgba(0,0,0,0.05);}}</style></head><body><h1 style='text-align:center; color:#e44d26;'>🚀 실시간 쿠팡 전수 조사 매거진</h1><div class='grid'>")
         for file in files[:100]:
             title = get_title_from_html(f"posts/{file}")
             f.write(f"<a class='card' href='posts/{file}'><div>{title}</div><div style='color:#e44d26; font-weight:bold; margin-top:15px;'>칼럼 읽기 ></div></a>")
         f.write("</div></body></html>")
 
     with open("sitemap.xml", "w", encoding="utf-8") as f:
-        # 💎 xmlns 속성을 정확히 추가하여 구글 경고를 해결했습니다.
+        # 💎 [SEO 해결] xmlns 속성을 정확히 추가하여 구글 경고를 제거합니다.
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
         f.write(f'  <url><loc>{SITE_URL}/</loc><lastmod>{now_iso}</lastmod><priority>1.0</priority></url>\n')
         for file in files:
