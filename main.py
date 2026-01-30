@@ -16,32 +16,51 @@ def get_authorization_header(method, path, query_string):
     return f"CEA algorithm=HmacSHA256, access-key={ACCESS_KEY}, signed-date={datetime_gmt}, signature={signature}"
 
 def fetch_data(keyword, page):
-    """💎 특정 페이지의 데이터를 확실하게 가져옵니다."""
+    """💎 [중요] 파라미터를 알파벳 순서로 정렬하여 인증 성공을 보장합니다."""
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-        params = {"keyword": keyword, "limit": 20, "page": page}
+        
+        # 💎 keyword -> limit -> page 순으로 정렬하여 호출합니다.
+        params = [
+            ('keyword', keyword),
+            ('limit', 20),
+            ('page', page)
+        ]
         query_string = urlencode(params)
         url = f"{DOMAIN}{path}?{query_string}"
-        headers = {"Authorization": get_authorization_header("GET", path, query_string), "Content-Type": "application/json"}
+        
+        headers = {
+            "Authorization": get_authorization_header("GET", path, query_string),
+            "Content-Type": "application/json"
+        }
+        
         response = requests.get(url, headers=headers, timeout=15)
+        
+        # ⚠️ 만약 성공하지 않았다면 이유를 로그에 남깁니다.
+        if response.status_code != 200:
+            print(f"   ❌ API 에러 ({response.status_code}): {response.text[:100]}")
+            return []
+            
         return response.json().get('data', {}).get('productData', [])
-    except: return []
+    except Exception as e:
+        print(f"   ❌ 시스템 연결 오류: {e}")
+        return []
 
 def generate_ai_content(product_name):
     """💎 별도 모듈 없이 requests로 제미나이 AI 호출 (안정성 최우선)."""
     if not GEMINI_KEY: return "상세 분석 데이터 준비 중"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 내외로 작성해줘. <h3> 태그를 활용해 섹션을 나누고 HTML만 사용해. '해요체'로 작성하고 '할인' 언급은 금지."
+    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 이상 장문으로 작성해줘. <h3> 태그를 활용해 섹션을 나누고 HTML만 사용해. '해요체'로 작성하고 '할인' 언급은 금지."
     try:
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         response = requests.post(url, json=payload, timeout=60)
         return response.json()['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>")
     except:
-        return f"<h3>🔍 제품 정밀 분석</h3>{product_name}은 실용성과 디자인을 모두 갖춘 최고의 추천 모델입니다."
+        return f"<h3>🔍 제품 정밀 분석</h3>{product_name}은 실용성과 완성도가 뛰어난 추천 모델입니다."
 
 def get_title_from_html(filepath):
-    """💎 HTML 파일에서 제목을 추출하는 함수 (에러 방지용)."""
+    """💎 HTML 파일에서 제목을 추출하는 함수 (인덱스 생성용)."""
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -53,7 +72,7 @@ def get_title_from_html(filepath):
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # 💎 아무 상품이나 쏟아지는 대중적인 씨앗 키워드
+    # 💎 쿠팡 전 품목 수집을 위한 가장 범위가 넓은 키워드들
     seeds = ["가전", "노트북", "운동화", "샴푸", "비타민", "물티슈", "기저귀", "양말", "베개", "보조배터리", "가습기", "커피머신"]
     target = random.choice(seeds)
     
@@ -61,10 +80,10 @@ def main():
     existing_ids = {f.split('_')[-1].replace('.html', '') for f in existing_posts if '_' in f}
     
     success_count, max_target = 0, 10
-    print(f"🕵️ 현재 {len(existing_ids)}개 노출 중. '{target}' 카테고리 순차 수색 시작!")
+    print(f"🕵️ 현재 {len(existing_ids)}개 노출 중. '{target}' 카테고리 순차 저인망 수색 시작!")
 
     # 💎 [페이지 순차 루프] 10개를 채울 때까지 페이지를 넘기며 무차별 발행
-    for page in range(1, 21): 
+    for page in range(1, 31): 
         if success_count >= max_target: break
         
         print(f"   🔍 [페이지 {page}] 분석 중...")
@@ -84,13 +103,15 @@ def main():
             ai_content = generate_ai_content(p_name)
             img, price = item['productImage'].split('?')[0], format(item['productPrice'], ',')
             
+            # 파일명을 날짜_ID 형태로 고정
             filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{p_id}.html"
+            
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>{p_name} 리뷰</title><style>body{{font-family:sans-serif; background:#f8f9fa; padding:20px; color:#333; line-height:2.2;}} .card{{max-width:750px; margin:auto; background:white; padding:50px; border-radius:30px; box-shadow:0 20px 50px rgba(0,0,0,0.05);}} h3{{color:#e44d26; margin-top:40px; border-left:6px solid #e44d26; padding-left:20px;}} img{{width:100%; border-radius:20px; margin:30px 0;}} .price-box{{text-align:center; background:#fff5f2; padding:30px; border-radius:20px; margin:40px 0;}} .p-val{{font-size:2.5rem; color:#e44d26; font-weight:bold;}} .buy-btn{{display:block; background:#e44d26; color:white; text-align:center; padding:25px; text-decoration:none; border-radius:60px; font-weight:bold; font-size:1.3rem;}}</style></head><body><div class='card'><h2>{p_name}</h2><img src='{img}'><div class='content'>{ai_content}</div><div class='price-box'><div class='p-val'>{price}원</div></div><a href='{item['productUrl']}' class='buy-btn'>🛍️ 상세 정보 확인하기</a></div></body></html>")
             
             existing_ids.add(p_id)
             success_count += 1
-            time.sleep(35) # 안전 발행 대기
+            time.sleep(30) # 안전 발행 대기
             if success_count >= max_target: break
 
     # 💎 [동기화] 인덱스, 사이트맵(네임스페이스 수정), robots.txt 갱신
@@ -99,7 +120,7 @@ def main():
     
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>쿠팡 핫딜 셔틀</title><style>body{{font-family:sans-serif; background:#f0f2f5; padding:20px;}} .grid{{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px;}} .card{{background:white; padding:25px; border-radius:20px; text-decoration:none; color:#333; box-shadow:0 5px 15px rgba(0,0,0,0.05);}}</style></head><body><h1 style='text-align:center; color:#e44d26;'>🚀 실시간 쿠팡 전수 조사 매거진</h1><div class='grid'>")
-        for file in files[:100]:
+        for file in files[:150]:
             title = get_title_from_html(f"posts/{file}")
             f.write(f"<a class='card' href='posts/{file}'><div>{title}</div><div style='color:#e44d26; font-weight:bold; margin-top:15px;'>칼럼 읽기 ></div></a>")
         f.write("</div></body></html>")
@@ -115,7 +136,7 @@ def main():
     with open("robots.txt", "w", encoding="utf-8") as f:
         f.write(f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml")
 
-    print(f"🏁 작업 종료! 총 {len(files)}개 노출 중. (신규 발행: {success_count}개)")
+    print(f"🏁 작업 완료! 총 {len(files)}개 노출 중. (신규 발행: {success_count}개)")
 
 if __name__ == "__main__":
     main()
