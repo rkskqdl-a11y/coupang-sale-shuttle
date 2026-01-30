@@ -1,6 +1,6 @@
 import os, hmac, hashlib, time, requests, json, random, re
 from datetime import datetime
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 
 # [1. 설정 정보]
 ACCESS_KEY = os.environ.get('COUPANG_ACCESS_KEY', '').strip()
@@ -9,21 +9,21 @@ GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
 
 def get_authorization_header(method, path, query_string):
-    """💎 사용자님이 성공했던 인증 로직을 100% 유지하며 정밀 교정합니다."""
+    """💎 사용자님이 성공했던 인증 로직을 유지하며 정밀 교정합니다."""
     datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
     message = datetime_gmt + method + path + query_string
     signature = hmac.new(bytes(SECRET_KEY, 'utf-8'), msg=bytes(message, 'utf-8'), digestmod=hashlib.sha256).hexdigest()
     return f"CEA algorithm=HmacSHA256, access-key={ACCESS_KEY}, signed-date={datetime_gmt}, signature={signature}"
 
 def fetch_data(keyword, page):
-    """💎 파라미터를 알파벳 순서로 정렬하여 '결과 없음' 에러를 해결합니다."""
+    """💎 파라미터를 알파벳 순서로 정렬하여 '0개 수신' 에러를 해결합니다."""
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
         
         # 💎 중요: keyword -> limit -> page 순으로 정렬해야 인증에 성공합니다.
-        params = [('keyword', keyword), ('limit', 20), ('page', page)]
-        query_string = urlencode(params)
+        # urlencode 대신 직접 조합하여 인코딩 변수를 제어합니다.
+        query_string = f"keyword={quote(keyword)}&limit=20&page={page}"
         url = f"{DOMAIN}{path}?{query_string}"
         
         headers = {
@@ -34,28 +34,27 @@ def fetch_data(keyword, page):
         response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code != 200:
-            print(f"   ❌ API 서버 응답 에러: {response.status_code} | {response.text[:100]}")
+            print(f"   ❌ 쿠팡 API 서버 응답 에러: {response.status_code} | {response.text[:100]}")
             return []
             
         data = response.json()
         items = data.get('data', {}).get('productData', [])
-        print(f"   📦 {len(items)}개 상품 수신 성공")
         return items
     except Exception as e:
         print(f"   ❌ 시스템 연결 오류: {e}")
         return []
 
 def generate_ai_content(product_name):
-    """💎 모듈 설치 에러 방지를 위해 requests로 제미나이 AI 호출."""
-    if not GEMINI_KEY: return "분석 데이터 준비 중"
+    """💎 지원 중단 경고 없이 requests로 제미나이 AI 호출 (1,000자 이상)."""
+    if not GEMINI_KEY: return "상세 분석 데이터 준비 중"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 이상 장문으로 작성해줘. <h3> 태그를 활용해 섹션을 나누고 HTML만 사용해. '해요체'로 작성하고 '할인' 언급은 금지."
+    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 이상 장문으로 작성해줘. <h3> 태그를 활용해 섹션을 나누고 HTML만 사용해. 친절한 '해요체'로 작성하고 '할인' 언급은 금지."
     try:
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         response = requests.post(url, json=payload, timeout=60)
         return response.json()['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>")
     except:
-        return f"<h3>🔍 제품 정밀 분석</h3>{product_name}은 실용성과 디자인을 모두 갖춘 스테디셀러 모델입니다."
+        return f"<h3>🔍 제품 정밀 분석</h3>{product_name}은 실용성과 완성도가 뛰어난 추천 모델입니다."
 
 def get_title_from_html(filepath):
     """💎 인덱스 생성을 위해 HTML 파일에서 제목을 추출합니다."""
@@ -70,7 +69,7 @@ def get_title_from_html(filepath):
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # 💎 무조건 결과가 쏟아지는 '저인망 수집용' 씨앗 단어들
+    # 💎 무엇이든 1페이지를 가득 채우는 광범위 시드 키워드들
     seeds = ["노트북", "운동화", "세탁기", "건조기", "가습기", "커피머신", "모니터", "비타민", "물티슈", "기저귀", "양말"]
     target = random.choice(seeds)
     
@@ -78,7 +77,7 @@ def main():
     existing_ids = {f.split('_')[-1].replace('.html', '') for f in existing_posts if '_' in f}
     
     success_count, max_target = 0, 10
-    print(f"🕵️ 현재 {len(existing_ids)}개 노출 중. '{target}' 기반 저인망 수색 시작!")
+    print(f"🕵️ 현재 {len(existing_ids)}개 노출 중. '{target}' 카테고리 순차 저인망 수색 시작!")
 
     # 💎 10개를 채울 때까지 페이지를 넘기며 무차별 발행
     for page in range(1, 31): 
@@ -87,11 +86,15 @@ def main():
         print(f"🔍 [페이지 {page}] 분석 중...")
         products = fetch_data(target, page)
         
-        if not products: continue
+        if not products:
+            # ⚠️ 에러 로그가 위에 찍히지 않았다면 진짜로 결과가 없는 것입니다.
+            continue
+            
+        print(f"   📦 {len(products)}개 상품 수신 성공. 중복 대조 시작...")
 
         for item in products:
             p_id = str(item['productId'])
-            if p_id in existing_ids: continue # 중복 건너뛰기
+            if p_id in existing_ids: continue # 이미 올린 상품은 건너뜁니다.
 
             p_name = item['productName']
             print(f"   ✨ 신규 발견! [{success_count+1}/10] {p_name[:25]}...")
@@ -120,7 +123,7 @@ def main():
         f.write("</div></body></html>")
 
     with open("sitemap.xml", "w", encoding="utf-8") as f:
-        # 💎 xmlns 속성을 정확히 추가하여 구글 경고를 해결했습니다.
+        # 💎 [SEO 해결] xmlns 속성을 정확히 추가하여 구글 경고를 제거했습니다.
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
         f.write(f'  <url><loc>{SITE_URL}/</loc><lastmod>{now_iso}</lastmod><priority>1.0</priority></url>\n')
         for file in files:
