@@ -9,56 +9,70 @@ GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
 
 def generate_ai_content(product_name):
-    """💎 별도 모듈 설치 없이 requests로 제미나이 AI 호출 (1,000자 이상 장문)"""
+    """💎 제미나이 AI 호출 (requests 기반으로 모듈 에러 방지)"""
     if not GEMINI_KEY: return "상세 분석 데이터 준비 중"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
     prompt = f"상품 '{product_name}'에 대해 전문적인 제품 분석 칼럼을 1,000자 이상 장문으로 작성해줘. <h3> 태그를 활용해 섹션을 나누고 HTML만 사용해. 친절한 '해요체'로 작성하고 '할인' 언급은 금지."
-    
     try:
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         response = requests.post(url, json=payload, timeout=60)
-        res_data = response.json()
-        if 'candidates' in res_data:
-            return res_data['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>").strip()
-    except: pass
-    return f"<h3>🔍 제품 정밀 분석</h3>{product_name}은 견고한 완성도와 실용성이 돋보이는 모델입니다."
+        return response.json()['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>")
+    except:
+        return f"<h3>🔍 제품 상세 분석</h3>{product_name}은 탄탄한 완성도와 실용성이 돋보이는 모델입니다."
 
 def get_authorization_header(method, path, query_string):
-    """💎 사용자님이 성공했던 인증 로직 100% 복제"""
+    """💎 쿠팡 HMAC 인증 로직 (정밀 교정)"""
     datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
     message = datetime_gmt + method + path + query_string
     signature = hmac.new(bytes(SECRET_KEY, 'utf-8'), msg=bytes(message, 'utf-8'), digestmod=hashlib.sha256).hexdigest()
     return f"CEA algorithm=HmacSHA256, access-key={ACCESS_KEY}, signed-date={datetime_gmt}, signature={signature}"
 
 def fetch_data(keyword):
-    """💎 1페이지 상단에서 확실하게 상품 데이터를 가져옵니다."""
+    """💎 [핵심] 1페이지 상단에서 확실하게 상품 데이터를 가져오며, 에러를 로그에 찍습니다."""
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
-        # 1페이지 상단 20개 상품을 타겟팅합니다.
+        
+        # 💎 중요: 파라미터를 알파벳 순서(keyword -> limit)로 엄격히 정렬해야 합니다.
         params = {"keyword": keyword, "limit": 20}
         query_string = urlencode(params)
+        
         url = f"{DOMAIN}{path}?{query_string}"
-        headers = {"Authorization": get_authorization_header("GET", path, query_string), "Content-Type": "application/json"}
+        headers = {
+            "Authorization": get_authorization_header("GET", path, query_string),
+            "Content-Type": "application/json"
+        }
+        
         response = requests.get(url, headers=headers, timeout=15)
-        return response.json().get('data', {}).get('productData', [])
-    except: return []
+        
+        # 💎 [디버깅 로그] 200이 아니면 무엇이 문제인지 출력합니다.
+        if response.status_code != 200:
+            print(f"   ⚠️ 쿠팡 API 서버 응답 에러: {response.status_code} ({response.reason})")
+            print(f"   💬 상세 내용: {response.text[:100]}")
+            return []
+            
+        data = response.json()
+        return data.get('data', {}).get('productData', [])
+    except Exception as e:
+        print(f"   ⚠️ 시스템 연결 오류: {e}")
+        return []
 
 def main():
     os.makedirs("posts", exist_ok=True)
     
-    # 💎 무조건 결과가 쏟아지는 씨앗 키워드
-    seeds = ["노트북", "운동화", "세탁기", "건조기", "린넨셔츠", "가습기", "커피머신", "모니터", "단백질보충제", "샴푸", "물티슈", "기저귀", "수건", "베개", "보조배터리"]
+    # 💎 무조건 결과가 쏟아지는 씨앗 키워드 (범위를 더 넓혔습니다)
+    seeds = ["노트북", "운동화", "세탁기", "건조기", "린넨셔츠", "가습기", "커피머신", "모니터", "단백질보충제", "샴푸", "물티슈", "기저귀", "수건", "베개", "보조배터리", "라면", "생수", "멀티탭", "충전기"]
     
+    # 중복 체크 최적화
     existing_posts = os.listdir("posts")
     existing_ids = {f.split('_')[-1].replace('.html', '') for f in existing_posts if '_' in f}
     
     success_count, max_target = 0, 10
     print(f"🕵️ 현재 {len(existing_ids)}개 노출 중. 새 상품 {max_target}개 무조건 발행 시작!")
 
-    # 💎 목표를 채울 때까지 1페이지 탐색 반복
     attempts = 0
-    while success_count < max_target and attempts < 50:
+    # 💎 10개를 다 채울 때까지 멈추지 않는 루프
+    while success_count < max_target and attempts < 100:
         attempts += 1
         target = random.choice(seeds)
         print(f"🔄 [{attempts}차] '{target}' 1페이지에서 상품 찾는 중...")
@@ -68,7 +82,7 @@ def main():
 
         for item in products:
             p_id = str(item['productId'])
-            if p_id in existing_ids: continue # 중복 건너뛰기
+            if p_id in existing_ids: continue 
 
             p_name = item['productName']
             print(f"   ✨ 발견! [{success_count+1}/10] {p_name[:20]}... 발행 중")
@@ -82,7 +96,7 @@ def main():
             
             existing_ids.add(p_id)
             success_count += 1
-            time.sleep(30)
+            time.sleep(30) # 안전 발행 대기
             if success_count >= max_target: break
 
     # 💎 [핵심 해결] 사이트맵 네임스페이스 오류 및 XML 규격 교정
@@ -110,7 +124,7 @@ def main():
             except: continue
         f.write("</div></body></html>")
     
-    print(f"🏁 작업 완료! 총 {len(files)}개 노출 중.")
+    print(f"🏁 작업 종료! 총 {len(files)}개 노출 중.")
 
 if __name__ == "__main__":
     main()
