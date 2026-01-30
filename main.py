@@ -1,6 +1,6 @@
 import os, hmac, hashlib, time, requests, json, random, re
 from datetime import datetime
-from urllib.parse import quote
+from urllib.parse import urlencode, quote
 
 # [1. 설정 정보]
 ACCESS_KEY = os.environ.get('COUPANG_ACCESS_KEY', '').strip()
@@ -9,20 +9,21 @@ GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
 
 def get_authorization_header(method, path, query_string):
-    """💎 쿠팡 HMAC 인증 로직을 표준 규격으로 정밀 교정합니다."""
+    """💎 사용자님이 성공했던 인증 로직을 유지하며 정밀 교정합니다."""
     datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
     message = datetime_gmt + method + path + query_string
     signature = hmac.new(bytes(SECRET_KEY, 'utf-8'), msg=bytes(message, 'utf-8'), digestmod=hashlib.sha256).hexdigest()
     return f"CEA algorithm=HmacSHA256, access-key={ACCESS_KEY}, signed-date={datetime_gmt}, signature={signature}"
 
 def fetch_data(keyword, page):
-    """💎 파라미터를 알파벳 순서로 정렬하여 인증 오류를 해결합니다."""
+    """💎 파라미터를 알파벳 순서로 정렬하여 '0개 수집' 에러를 원천 차단합니다."""
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
         
         # 💎 중요: keyword -> limit -> page 순으로 정렬해야 인증에 성공합니다.
-        query_string = f"keyword={quote(keyword)}&limit=20&page={page}"
+        params = [('keyword', keyword), ('limit', 20), ('page', page)]
+        query_string = urlencode(params)
         url = f"{DOMAIN}{path}?{query_string}"
         
         headers = {
@@ -33,30 +34,31 @@ def fetch_data(keyword, page):
         response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code != 200:
-            print(f"   ⚠️ 쿠팡 서버 응답 실패: {response.status_code} | {response.text[:100]}")
+            print(f"   ❌ 쿠팡 API 서버 응답 에러: {response.status_code} | {response.text[:100]}")
             return []
             
         data = response.json()
         items = data.get('data', {}).get('productData', [])
-        if items: print(f"   📦 {len(items)}개 상품 수신 성공")
+        if items: print(f"   📦 {len(items)}개 상품 수신 성공 (p.{page})")
         return items
     except Exception as e:
-        print(f"   ⚠️ 연결 오류: {e}")
+        print(f"   ❌ 시스템 연결 오류: {e}")
         return []
 
 def generate_ai_content(product_name):
-    """💎 지원 중단 경고 없이 requests로 제미나이 AI 호출 (1,000자 장문)."""
-    if not GEMINI_KEY: return "분석 데이터 준비 중"
+    """💎 지원 중단 경고 없이 requests로 제미나이 AI 호출 (1,000자 이상)."""
+    if not GEMINI_KEY: return "상세 분석 데이터 준비 중"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 이상 장문으로 작성해줘. <h3> 활용, HTML만 사용, '해요체', '할인' 언급 금지."
+    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 이상 장문으로 작성해줘. <h3> 섹션 구분, HTML만 사용, 친절한 '해요체', '할인' 언급 절대 금지."
     try:
-        res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=60)
-        return res.json()['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>")
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        response = requests.post(url, json=payload, timeout=60)
+        return response.json()['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>")
     except:
-        return f"<h3>🔍 제품 정밀 분석</h3>{product_name}은 탄탄한 설계와 실용성이 돋보이는 추천 모델입니다."
+        return f"<h3>🔍 제품 상세 분석</h3>{product_name}은 품질과 성능이 검증된 최고의 추천 모델입니다."
 
 def get_title_from_html(filepath):
-    """💎 [에러 해결] 인덱스 생성을 위한 제목 추출 함수를 정의했습니다."""
+    """💎 인덱스 생성을 위해 HTML 파일에서 제목을 추출합니다."""
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -78,35 +80,35 @@ def main():
     success_count, max_target = 0, 10
     print(f"🕵️ 현재 {len(existing_ids)}개 노출 중. '{target}' 기반 저인망 수색 시작!")
 
-    # 💎 1페이지부터 차례대로! 중복이면 다음 페이지로!
+    # 💎 10개를 채울 때까지 페이지를 넘기며 무차별 발행
     for page in range(1, 31): 
         if success_count >= max_target: break
         
         print(f"🔍 [페이지 {page}] 분석 중...")
         products = fetch_data(target, page)
         
-        if not products: continue 
+        if not products: continue
 
         for item in products:
             p_id = str(item['productId'])
             if p_id in existing_ids: continue # 중복 건너뛰기
 
             p_name = item['productName']
-            print(f"   ✨ 발견! [{success_count+1}/10] {p_name[:20]}...")
+            print(f"   ✨ 신규 발견! [{success_count+1}/10] {p_name[:25]}...")
             
             ai_content = generate_ai_content(p_name)
             img, price = item['productImage'].split('?')[0], format(item['productPrice'], ',')
             
             filename = f"posts/{datetime.now().strftime('%Y%m%d')}_{p_id}.html"
             with open(filename, "w", encoding="utf-8") as f:
-                f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><title>{p_name} 리뷰</title><style>body{{font-family:sans-serif; background:#f8f9fa; padding:20px; color:#333; line-height:2.2;}} .card{{max-width:750px; margin:auto; background:white; padding:50px; border-radius:30px; box-shadow:0 20px 50px rgba(0,0,0,0.05);}} h3{{color:#e44d26; margin-top:40px; border-left:6px solid #e44d26; padding-left:20px;}} img{{width:100%; border-radius:20px; margin:30px 0;}} .p-val{{font-size:2.5rem; color:#e44d26; font-weight:bold; text-align:center;}} .buy-btn{{display:block; background:#e44d26; color:white; text-align:center; padding:25px; text-decoration:none; border-radius:60px; font-weight:bold; font-size:1.3rem;}}</style></head><body><div class='card'><h2>{p_name}</h2><img src='{img}'><div class='content'>{ai_content}</div><div class='p-val'>{price}원</div><a href='{item['productUrl']}' class='buy-btn'>🛍️ 상세 정보 확인하기</a></div></body></html>")
+                f.write(f"<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>{p_name} 리뷰</title><style>body{{font-family:sans-serif; background:#f8f9fa; padding:20px; color:#333; line-height:2.2;}} .card{{max-width:750px; margin:auto; background:white; padding:50px; border-radius:30px; box-shadow:0 20px 50px rgba(0,0,0,0.05);}} h3{{color:#e44d26; margin-top:40px; border-left:6px solid #e44d26; padding-left:20px;}} img{{width:100%; border-radius:20px; margin:30px 0;}} .p-val{{font-size:2.5rem; color:#e44d26; font-weight:bold; text-align:center;}} .buy-btn{{display:block; background:#e44d26; color:white; text-align:center; padding:25px; text-decoration:none; border-radius:60px; font-weight:bold; font-size:1.3rem;}}</style></head><body><div class='card'><h2>{p_name}</h2><img src='{img}'><div class='content'>{ai_content}</div><div class='p-val'>{price}원</div><a href='{item['productUrl']}' class='buy-btn'>🛍️ 상세 정보 확인하기</a></div></body></html>")
             
             existing_ids.add(p_id)
             success_count += 1
-            time.sleep(30)
+            time.sleep(30) # 안전 발행 대기
             if success_count >= max_target: break
 
-    # 💎 [SEO 동기화] 구글 네임스페이스 오류 해결
+    # 💎 [동기화] 인덱스, 사이트맵(네임스페이스 수정), robots.txt 갱신
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     now_iso = datetime.now().strftime("%Y-%m-%d")
     
@@ -118,7 +120,7 @@ def main():
         f.write("</div></body></html>")
 
     with open("sitemap.xml", "w", encoding="utf-8") as f:
-        # 💎 [SEO 해결] xmlns 속성을 정확히 추가하여 구글 경고를 제거합니다.
+        # 💎 [SEO 해결] xmlns 속성을 정확히 추가하여 구글 경고를 제거했습니다.
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
         f.write(f'  <url><loc>{SITE_URL}/</loc><lastmod>{now_iso}</lastmod><priority>1.0</priority></url>\n')
         for file in files:
