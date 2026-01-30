@@ -9,26 +9,30 @@ GEMINI_KEY = os.environ.get('GEMINI_API_KEY', '').strip()
 SITE_URL = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
 
 def generate_ai_content(product_name):
-    """💎 1,000자 내외의 리뷰 생성 (속도와 품질 최적화)"""
-    if not GEMINI_KEY: return "분석 데이터 준비 중"
+    """💎 1,000자 내외의 리뷰 칼럼 생성"""
+    if not GEMINI_KEY: return "상세 분석 데이터 준비 중"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    prompt = f"상품 '{product_name}'에 대해 전문적인 제품 분석 칼럼을 1,000자 내외 장문으로 작성해줘. <h3> 태그를 활용해 섹션을 나누고 HTML만 사용해. '할인' 언급 절대 금지."
+    prompt = f"상품 '{product_name}'에 대해 전문적인 분석 칼럼을 1,000자 내외로 작성해줘. <h3> 태그를 활용해 섹션을 나누고 HTML만 사용해. '할인' 언급 절대 금지."
     try:
         response = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=40)
         res_data = response.json()
         if 'candidates' in res_data:
             return res_data['candidates'][0]['content']['parts'][0]['text'].replace("\n", "<br>").strip()
     except: pass
-    return f"<h3>🔍 제품 상세 분석</h3>{product_name}은 견고한 완성도와 실용성이 돋보이는 모델입니다."
+    return f"<h3>🔍 제품 상세 분석</h3>{product_name}은 견고한 완성도가 돋보이는 제품입니다."
 
 def fetch_data(keyword, page):
-    """💎 [핵심] 쿠팡 API 인증 오류 해결을 위한 파라미터 정렬 호출"""
+    """💎 [핵심] 인증 오류 방지를 위한 파라미터 사전순 정렬 호출"""
     try:
         DOMAIN = "https://api-gateway.coupang.com"
         path = "/v2/providers/affiliate_open_api/apis/openapi/v1/products/search"
         
-        # 💎 파라미터를 반드시 사전순(keyword -> limit -> page)으로 배치해야 인증 성공합니다.
-        params = {"keyword": keyword, "limit": 40, "page": page}
+        # 💎 파라미터를 반드시 사전순(keyword -> limit -> page)으로 고정하여 인증 성공률을 보장합니다.
+        params = [
+            ("keyword", keyword),
+            ("limit", 40),
+            ("page", page)
+        ]
         query_string = urlencode(params)
         
         headers = {
@@ -38,13 +42,11 @@ def fetch_data(keyword, page):
         response = requests.get(f"{DOMAIN}{path}?{query_string}", headers=headers, timeout=15)
         
         if response.status_code != 200:
-            print(f"   ⚠️ API 에러: {response.status_code} ({response.text[:50]})")
+            print(f"   ⚠️ API 응답 이상: {response.status_code}")
             return []
             
         return response.json().get('data', {}).get('productData', [])
-    except Exception as e:
-        print(f"   ⚠️ 수집 중 오류: {e}")
-        return []
+    except: return []
 
 def get_authorization_header(method, path, query_string):
     datetime_gmt = time.strftime('%y%m%dT%H%M%SZ', time.gmtime())
@@ -53,11 +55,10 @@ def get_authorization_header(method, path, query_string):
     return f"CEA algorithm=HmacSHA256, access-key={ACCESS_KEY}, signed-date={datetime_gmt}, signature={signature}"
 
 def main():
-    start_time = time.time()
     os.makedirs("posts", exist_ok=True)
     
-    # 💎 검색 실패가 없는 '대표 키워드' 100개
-    seeds = ["세탁기", "노트북", "건조기", "린넨셔츠", "가습기", "커피머신", "운동화", "청바지", "샴푸", "비타민", "물티슈", "충전기", "마스크", "이어폰", "백팩", "보조배터리", "수건", "베개", "후라이팬", "냄비"]
+    # 💎 무조건 결과가 쏟아지는 씨앗 키워드들
+    seeds = ["양말", "반팔티", "청바지", "슬리퍼", "수건", "베개", "멀티탭", "충전기", "케이블", "텀블러", "후라이팬", "냄비", "샴푸", "비타민", "마스크", "이어폰", "백팩", "보조배터리", "물티슈", "기저귀"]
     
     existing_ids = {f.split('_')[-1].replace('.html', '') for f in os.listdir("posts") if '_' in f}
     success_count, max_target = 0, 10
@@ -65,30 +66,27 @@ def main():
     
     print(f"🕵️ 현재 {len(existing_ids)}개 노출 중. 목표 {max_target}개 수집 시작!")
 
-    # 💎 최대 100회 시도 또는 50분 경과 시 자동 종료 (6시간 타임아웃 방지)
-    while success_count < max_target and attempts < 100:
-        if time.time() - start_time > 3000: # 50분 경과 시 종료
-            print("🕒 실행 시간 50분 초과로 안전 종료합니다.")
-            break
-            
+    # 💎 10개를 채울 때까지 최대 150회 시도
+    while success_count < max_target and attempts < 150:
         attempts += 1
         target = random.choice(seeds)
-        page = random.randint(1, 20)
+        # 💎 1~10페이지 사이의 '확실한' 결과 위주로 먼저 공략합니다.
+        page = random.randint(1, 10)
         
         products = fetch_data(target, page)
         if not products:
-            print(f"   ❌ [{attempts}차] '{target}' p.{page} 결과 없음. 건너뜁니다.")
+            print(f"   ❌ [{attempts}차] '{target}' p.{page} 결과 없음. 다시 시도...")
             continue
 
-        print(f"   🔍 [{attempts}차] '{target}' p.{page}에서 {len(products)}개 발견!")
+        print(f"   🔍 [{attempts}차] '{target}' p.{page}에서 {len(products)}개 발견! 중복 체크 중...")
         random.shuffle(products)
 
         for item in products:
             p_id = str(item['productId'])
-            if p_id in existing_ids: continue # 중복 방지
+            if p_id in existing_ids: continue # 중복 건너뛰기
 
             p_name = item['productName']
-            print(f"   ✍️  신규 상품 발견: {p_name[:20]}... 발행 중")
+            print(f"   ✍️  신규 발행: {p_name[:20]}...")
             
             ai_content = generate_ai_content(p_name)
             img, price = item['productImage'].split('?')[0], format(item['productPrice'], ',')
@@ -99,14 +97,14 @@ def main():
             
             existing_ids.add(p_id)
             success_count += 1
-            time.sleep(30) # API 안정성
+            time.sleep(30) # 안전 대기
             if success_count >= max_target: break
 
-    # 💎 [중요: 사이트맵 오류 해결] 네임스페이스 삽입 및 공백 제거
+    # 💎 [사이트맵 오류 해결] 네임스페이스 삽입 및 강제 업데이트
     files = sorted([f for f in os.listdir("posts") if f.endswith(".html")], reverse=True)
     now_iso = datetime.now().strftime("%Y-%m-%d")
     
-    # XML 선언문 앞에 빈 줄이 없도록 strip()을 적용합니다.
+    # xmlns 선언을 정확히 추가하여 구글 서치 콘솔 경고를 제거합니다.
     sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n'
     sitemap += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     sitemap += f'  <url><loc>{SITE_URL}/</loc><lastmod>{now_iso}</lastmod><priority>1.0</priority></url>\n'
@@ -123,11 +121,11 @@ def main():
             try:
                 with open(f"posts/{file}", 'r', encoding='utf-8') as fr:
                     title = re.search(r'<title>(.*?)</title>', fr.read()).group(1).replace(" 리뷰", "")
-                f.write(f"<a class='card' href='posts/{file}'><div class='title'>{title}</div><div style='color:#e44d26; font-weight:bold;'>칼럼 보기 ></div></a>")
+                f.write(f"<a class='card' href='posts/{file}'><div class='title'>{title}</div><div style='color:#e44d26; font-weight:bold;'>칼럼 읽기 ></div></a>")
             except: continue
         f.write("</div></body></html>")
     
-    print(f"🏁 작업 종료! 총 {len(files)}개 노출 중. (시도 횟수: {attempts})")
+    print(f"🏁 작업 종료! 총 {len(files)}개 노출 중.")
 
 if __name__ == "__main__":
     main()
