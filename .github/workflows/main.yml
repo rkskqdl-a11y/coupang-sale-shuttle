@@ -2,18 +2,17 @@ name: Safe Twice-Daily Automation
 
 on:
   schedule:
-    # 💎 한국 시간(KST) 기준 오전 10시, 오후 10시 정각 실행
+    # 💎 한국 시간(KST) 오전 10시, 오후 10시 정각 실행
+    # (주의: 깃허브 서버 사정에 따라 10~30분 정도 늦게 시작될 수 있습니다.)
     - cron: '0 1,13 * * *'
-  workflow_dispatch: # 💎 지금 바로 실행해보기 위한 수동 버튼
+  workflow_dispatch: 
 
 permissions:
-  contents: write
+  contents: write # 💎 인덱스 파일을 업데이트하기 위해 반드시 필요
 
 jobs:
   automation-engine:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
-
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
@@ -31,7 +30,6 @@ jobs:
           COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
           COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          COUPANG_SITE_ID: "AF7053799"
         run: python main.py
 
       - name: Git Push Changes
@@ -40,7 +38,7 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           if ! git diff-index --quiet HEAD; then
-            git commit -m "chore: 안전 엔진 가동 및 업데이트 ($(date +'%Y-%m-%d'))"
+            git commit -m "chore: 사이트 대문 및 상품 진열 자동 업데이트 ($(date +'%Y-%m-%d'))"
             git push
           else
             echo "변경 사항 없음 - 푸시 스킵"
