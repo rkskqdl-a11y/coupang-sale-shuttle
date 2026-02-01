@@ -2,11 +2,11 @@ import os, hmac, hashlib, time, requests, json, random, re, sys
 from datetime import datetime
 from time import gmtime, strftime
 from urllib.parse import urlencode
-# 🚨 신형 SDK로 교체 (ValueError 및 404 에러 방지)
+# 🚨 최신 SDK 규격 적용 (ImportError 해결)
 from google import genai
 from google.genai import types
 
-# 🚀 [System] AF7053799 전용 '실시간 구글 검색(Grounding)' 엔진 가동
+# 🚀 [System] AF7053799 전용 '실시간 구글 검색' 엔진 가동
 print(f"🚀 [System] 가동 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 class CoupangExpertBot:
@@ -19,7 +19,7 @@ class CoupangExpertBot:
         self.posts_dir = "posts"
         os.makedirs(self.posts_dir, exist_ok=True)
         
-        # 💎 신형 제미나이 클라이언트 설정
+        # 💎 최신 제미나이 클라이언트 초기화
         if self.gemini_key:
             self.client = genai.Client(api_key=self.gemini_key)
 
@@ -40,20 +40,21 @@ class CoupangExpertBot:
         except: return []
 
     def generate_research_content(self, p_name):
-        """💎 구글 실시간 검색(Grounding)을 통해 외부 정보를 긁어모읍니다."""
+        """💎 구글 검색(Grounding)을 통해 외부 정보를 긁어와 풍성한 글을 씁니다."""
         if not self.gemini_key: return "상세 분석 준비 중"
         
+        # 💎 AI에게 '무조건 구글 검색을 해서 상세 스펙을 찾아라'고 지시합니다.
         prompt = (
-            f"상품명 '{p_name}'에 대해 실시간 구글 검색을 수행하고 IT 전문 기자의 관점에서 칼럼을 작성하세요.\n\n"
+            f"상품 '{p_name}'에 대해 실시간 구글 검색을 수행하고 IT 전문 기자의 관점에서 칼럼을 작성하세요.\n\n"
             f"1. [상세 사양]: 검색된 정보를 바탕으로 이 모델의 CPU, 램, 해상도, 무게 등 주요 사양을 표(table) 형식으로 상세히 만드세요.\n"
-            f"2. [제품 특징]: 쿠팡 외의 다른 쇼핑몰이나 제조사 페이지에서 언급된 이 제품의 독보적인 기술 포인트 3가지를 분석하세요.\n"
-            f"3. [실사용자 리뷰 분석]: 블로그, 커뮤니티, 유튜브의 실제 사용자 후기를 장단점으로 나누어 800자 이상으로 깊이 있게 정리하세요.\n"
+            f"2. [제품 특징]: 다른 쇼핑몰이나 제조사 페이지에서 언급된 이 제품의 독보적인 기술 포인트 3가지를 분석하세요.\n"
+            f"3. [실사용자 리뷰]: 실제 사용자들의 긍정적인 평가와 아쉬운 점을 나누어 800자 이상으로 깊이 있게 정리하세요.\n"
             f"4. <h3> 태그를 사용하여 문단을 나누고 전체 2,000자 내외의 압도적인 분량으로 작성하세요.\n"
-            f"5. 제목을 본문 첫 문장에 반복하지 말고, HTML 태그만 출력하세요. 친절한 해요체로 작성하세요."
+            f"5. 제목을 본문 첫 문장에 반복하지 말고, HTML 태그만 출력하세요. 해요체로 작성하세요."
         )
         
         try:
-            # 💎 [핵심] 신형 SDK의 구글 검색(Grounding) 호출 방식
+            # 💎 최신 SDK의 구글 검색 호출 방식 적용
             response = self.client.models.generate_content(
                 model='gemini-1.5-flash',
                 contents=prompt,
@@ -64,7 +65,7 @@ class CoupangExpertBot:
             return response.text.replace("\n", "<br>")
         except Exception as e:
             print(f"   ⚠️ AI 수집 오류: {e}")
-            return f"<h3>🔍 제품 정밀 분석</h3>'{p_name}'은 신뢰할 수 있는 성능과 품질을 갖춘 추천 모델입니다."
+            return f"<h3>🔍 제품 정밀 분석</h3>'{p_name}'은 신뢰할 수 있는 성능을 갖춘 추천 모델입니다."
 
     def get_real_title(self, path):
         try:
@@ -81,14 +82,14 @@ class CoupangExpertBot:
         existing_ids = {f.split('_')[-1].replace('.html', '') for f in os.listdir(self.posts_dir) if '_' in f}
         success_count, max_target = 0, 10
         
-        # 💎 500개 중복을 피하기 위해 키워드를 더 정교하게 바꾸고 페이지를 무작위로 뒤집니다.
-        seeds = ["게이밍 노트북 i7", "대용량 캠핑 웨건", "차이슨 무선청소기 신제품", "오메가3 영양제 추천", "로봇청소기 물걸레"]
+        # 💎 500개 중복을 피하기 위해 키워드를 더 정교하게 바꾸고 페이지를 크게 점프합니다.
+        seeds = ["게이밍 노트북 i7", "캠핑 에어텐트", "무선 청소기 신제품", "영양제 추천", "아이폰 16 케이스"]
         target = random.choice(seeds)
-        start_page = random.randint(10, 100) # 💎 100페이지까지 무작위 점프하여 수색
+        start_page = random.randint(10, 80) # 💎 80페이지까지 무작위 점프
         
         print(f"🕵️ 현재 {len(existing_ids)}개 진열 중. '{target}' {start_page}p부터 수색 시작!")
 
-        for page in range(start_page, start_page + 15):
+        for page in range(start_page, start_page + 10):
             if success_count >= max_target: break
             items = self.fetch_data(target, page)
             if not items: continue
@@ -109,7 +110,7 @@ class CoupangExpertBot:
                 
                 existing_ids.add(p_id)
                 success_count += 1
-                time.sleep(45) # 💎 고품질 검색 데이터 처리를 위해 대기 시간 상향
+                time.sleep(45) # 💎 고품질 수집을 위해 대기 시간 상향
                 if success_count >= max_target: break
 
         self.update_web()
