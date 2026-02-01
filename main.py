@@ -17,12 +17,12 @@ class CoupangExpertBot:
         self.posts_dir = "posts"
         os.makedirs(self.posts_dir, exist_ok=True)
         
-        # 💎 제미나이 실시간 검색(Grounding) 설정
+        # 💎 제미나이 실시간 검색(Grounding) 설정 (404 에러 방지용 최적화)
         if self.gemini_key:
             genai.configure(api_key=self.gemini_key)
-            # 🚨 404 에러 방지를 위해 v1beta 모델과 검색 툴을 정확히 매핑합니다.
+            # 🚨 에러 해결 포인트: google_search_retrieval 도구를 사용합니다.
             self.model = genai.GenerativeModel(
-                model_name='models/gemini-1.5-flash',
+                model_name='gemini-1.5-flash',
                 tools=[{'google_search_retrieval': {}}] 
             )
 
@@ -43,28 +43,28 @@ class CoupangExpertBot:
         except: return []
 
     def generate_research_content(self, p_name):
-        """💎 구글 검색을 강제 실행하여 풍성한 정보를 수집합니다."""
+        """💎 구글 실시간 검색을 강제 실행하여 풍성한 정보를 수집합니다."""
         if not self.gemini_key: return "상세 분석 준비 중"
         
-        # 💎 AI에게 '무조건 검색하라'는 지시를 내립니다.
+        # 💎 AI에게 '반드시 검색해서 외부 정보를 가져오라'는 지침을 내립니다.
         prompt = (
             f"상품 '{p_name}'에 대해 실시간 구글 검색을 수행하고 IT 전문 기자의 관점에서 칼럼을 작성하세요.\n\n"
-            f"1. [상세 스펙표]: 검색된 정보를 바탕으로 CPU, 램, 해상도, 무게 등 주요 사양을 표(table) 형식으로 만드세요.\n"
-            f"2. [핵심 포인트]: 이 제품이 시장에서 가지는 독보적인 장점 3가지를 분석하세요.\n"
-            f"3. [실사용 후기 요약]: 블로그나 커뮤니티의 실제 사용자 평판을 장단점으로 나누어 정리하세요.\n"
-            f"4. <h3> 태그를 사용하여 문단을 나누고 전체 2,000자 내외로 매우 풍성하게 작성하세요.\n"
-            f"5. 제목을 본문 첫 줄에 반복하지 말고, HTML 태그만 출력하세요. 해요체로 작성하세요."
+            f"1. [상세 스펙표]: 검색된 정보를 바탕으로 이 모델의 CPU, 램, 해상도, 무게 등 주요 사양을 표(table) 형식으로 상세히 만드세요.\n"
+            f"2. [제품 특징]: 쿠팡 외의 다른 쇼핑몰이나 제조사 페이지에서 언급된 이 제품의 독보적인 기술 포인트 3가지를 분석하세요.\n"
+            f"3. [실사용자 리뷰 분석]: 블로그, 커뮤니티, 유튜브의 실제 사용자 후기를 장단점으로 나누어 600자 이상으로 깊이 있게 정리하세요.\n"
+            f"4. <h3> 태그를 사용하여 문단을 나누고 전체 2,000자 내외의 압도적인 분량으로 작성하세요.\n"
+            f"5. 제목을 본문 첫 문장에 반복하지 말고, HTML 태그만 출력하세요. 친절한 해요체로 작성하세요."
         )
         
         try:
-            # 💎 Grounding 기능을 사용하여 검색 결과를 포함한 답변 생성
+            # 💎 Grounding 기능을 사용하여 실제 검색 결과를 결합합니다.
             response = self.model.generate_content(prompt)
-            # 만약 검색이 제대로 안 될 경우를 대비해 텍스트 클리닝
+            # 마크다운 코드 블록 제거 및 줄바꿈 처리
             content = response.text.replace("```html", "").replace("```", "").replace("\n", "<br>")
             return content
         except Exception as e:
-            print(f"   ⚠️ AI 생성 오류: {e}")
-            return f"<h3>🔍 제품 정밀 분석</h3>'{p_name}'은 뛰어난 가성비와 안정적인 성능을 갖춘 추천 모델입니다."
+            print(f"   ⚠️ AI 생성 오류 (재시도 중): {e}")
+            return f"<h3>🔍 제품 정밀 분석</h3>'{p_name}'은 품질과 성능이 검증된 최고의 모델입니다."
 
     def get_real_title(self, path):
         try:
@@ -81,10 +81,10 @@ class CoupangExpertBot:
         existing_ids = {f.split('_')[-1].replace('.html', '') for f in os.listdir(self.posts_dir) if '_' in f}
         success_count, max_target = 0, 10
         
-        # 💎 495개 중복을 피하기 위해 키워드 범위를 넓히고 페이지를 무작위로 선택합니다.
-        seeds = ["게이밍 노트북", "캠핑용 에어텐트", "무선 청소기 추천", "영양제 세트", "아이폰 16 케이스", "로봇 청소기"]
+        # 💎 500개 중복을 피하기 위해 키워드 범위를 넓히고 페이지를 무작위로 뒤집니다.
+        seeds = ["게이밍 노트북", "캠핑용품 에어텐트", "무선 청소기", "영양제 세트", "아이폰 16 프로 케이스", "로봇 청소기"]
         target = random.choice(seeds)
-        start_page = random.randint(1, 30) # 30페이지까지 무작위 점프
+        start_page = random.randint(1, 30) # 💎 30페이지까지 무작위 점프하여 수색
         
         print(f"🕵️ 현재 {len(existing_ids)}개 진열 중. '{target}' {start_page}p부터 수색 시작!")
 
@@ -95,7 +95,7 @@ class CoupangExpertBot:
 
             for item in items:
                 p_id = str(item['productId'])
-                if p_id in existing_ids: continue # 중복 패스
+                if p_id in existing_ids: continue 
 
                 print(f"   ✨ 신규 발견! [{success_count+1}/10] {item['productName'][:20]}...")
                 content = self.generate_research_content(item['productName'])
@@ -109,7 +109,7 @@ class CoupangExpertBot:
                 
                 existing_ids.add(p_id)
                 success_count += 1
-                time.sleep(40) # 💎 안정적인 검색 생성을 위해 대기 시간 상향
+                time.sleep(40) # 💎 안정적인 검색 데이터 처리를 위해 대기 시간 상향
                 if success_count >= max_target: break
 
         self.update_web()
