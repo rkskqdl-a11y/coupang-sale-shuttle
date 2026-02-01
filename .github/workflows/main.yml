@@ -23,8 +23,9 @@ jobs:
           python-version: '3.12'
 
       - name: Install Dependencies
-        run: pip install requests google-generativeai
-
+        run: |
+          pip install requests google-genai  # 🚨 google-generativeai 대신 이것을 설치해야 합니다.
+        
       - name: Run Scraping Engine
         env:
           COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
