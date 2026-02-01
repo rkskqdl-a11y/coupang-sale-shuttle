@@ -1,4 +1,4 @@
-# Updated: 2026-02-01T05:09:55.504859
+# Forced Sync: 2026-02-01T07:38:33.637364
 User-agent: *
 Allow: /
 Sitemap: https://rkskqdl-a11y.github.io/coupang-sale-shuttle/sitemap.xml
