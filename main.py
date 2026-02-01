@@ -2,9 +2,11 @@ import os, hmac, hashlib, time, requests, json, random, re, sys
 from datetime import datetime
 from time import gmtime, strftime
 from urllib.parse import urlencode
-import google.generativeai as genai
+# 🚨 신형 SDK로 교체 (ValueError 및 404 에러 방지)
+from google import genai
+from google.genai import types
 
-# 🚀 [System] AF7053799 전용 '실시간 구글 검색' 엔진 가동
+# 🚀 [System] AF7053799 전용 '실시간 구글 검색(Grounding)' 엔진 가동
 print(f"🚀 [System] 가동 시각: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 class CoupangExpertBot:
@@ -12,19 +14,14 @@ class CoupangExpertBot:
         self.access = os.environ.get('COUPANG_ACCESS_KEY', '').strip()
         self.secret = os.environ.get('COUPANG_SECRET_KEY', '').strip()
         self.gemini_key = os.environ.get('GEMINI_API_KEY', '').strip()
-        self.partners_id = "AF7053799" #
-        self.site_url = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle" #
+        self.partners_id = "AF7053799"
+        self.site_url = "https://rkskqdl-a11y.github.io/coupang-sale-shuttle"
         self.posts_dir = "posts"
         os.makedirs(self.posts_dir, exist_ok=True)
         
-        # 💎 제미나이 실시간 검색(Grounding) 설정
+        # 💎 신형 제미나이 클라이언트 설정
         if self.gemini_key:
-            genai.configure(api_key=self.gemini_key)
-            # 🚨 핵심 수정: 구글 검색 도구를 활성화합니다.
-            self.model = genai.GenerativeModel(
-                model_name='gemini-1.5-flash',
-                tools=[{'google_search_retrieval': {}}] 
-            )
+            self.client = genai.Client(api_key=self.gemini_key)
 
     def _generate_auth(self, method, path, query=""):
         datetime_gmt = strftime('%y%m%d', gmtime()) + 'T' + strftime('%H%M%S', gmtime()) + 'Z'
@@ -39,30 +36,32 @@ class CoupangExpertBot:
         headers = {"Authorization": self._generate_auth("GET", path, query), "Content-Type": "application/json"}
         try:
             resp = requests.get(f"https://api-gateway.coupang.com{path}?{query}", headers=headers, timeout=15)
-            if resp.status_code != 200: return []
             return resp.json().get('data', {}).get('productData', [])
         except: return []
 
     def generate_research_content(self, p_name):
-        """💎 구글 실시간 검색을 강제 실행하여 외부 정보를 긁어모읍니다."""
+        """💎 구글 실시간 검색(Grounding)을 통해 외부 정보를 긁어모읍니다."""
         if not self.gemini_key: return "상세 분석 준비 중"
         
-        # 💎 제미나이에게 '반드시 검색해서 외부 사양을 찾아내라'는 지시를 내립니다.
         prompt = (
             f"상품명 '{p_name}'에 대해 실시간 구글 검색을 수행하고 IT 전문 기자의 관점에서 칼럼을 작성하세요.\n\n"
-            f"1. [상세 사양]: 구글 검색을 통해 이 모델의 핵심 사양(CPU, 배터리, 무게, 해상도 등)을 정확한 수치와 함께 표(table) 형식으로 만드세요.\n"
-            f"2. [제품 특징]: 이 제품만이 가진 독보적인 장점 3가지를 다른 사이트의 분석 자료를 토대로 서술하세요.\n"
-            f"3. [사용자 경험]: 블로그, 유튜브 등 실제 사용자들의 긍정적인 평가와 고질적인 단점을 나누어 800자 이상으로 깊이 있게 정리하세요.\n"
+            f"1. [상세 사양]: 검색된 정보를 바탕으로 이 모델의 CPU, 램, 해상도, 무게 등 주요 사양을 표(table) 형식으로 상세히 만드세요.\n"
+            f"2. [제품 특징]: 쿠팡 외의 다른 쇼핑몰이나 제조사 페이지에서 언급된 이 제품의 독보적인 기술 포인트 3가지를 분석하세요.\n"
+            f"3. [실사용자 리뷰 분석]: 블로그, 커뮤니티, 유튜브의 실제 사용자 후기를 장단점으로 나누어 800자 이상으로 깊이 있게 정리하세요.\n"
             f"4. <h3> 태그를 사용하여 문단을 나누고 전체 2,000자 내외의 압도적인 분량으로 작성하세요.\n"
-            f"5. 제목을 본문 첫 문장에 그대로 반복하지 말고, HTML 태그만 출력하세요. 친절한 해요체로 작성하세요."
+            f"5. 제목을 본문 첫 문장에 반복하지 말고, HTML 태그만 출력하세요. 친절한 해요체로 작성하세요."
         )
         
         try:
-            # 💎 Grounding 기능을 사용하여 검색 결과를 포함한 답변 생성
-            response = self.model.generate_content(prompt)
-            # 마크다운 코드 블록 제거 및 클리닝
-            content = response.text.replace("```html", "").replace("```", "").replace("\n", "<br>")
-            return content
+            # 💎 [핵심] 신형 SDK의 구글 검색(Grounding) 호출 방식
+            response = self.client.models.generate_content(
+                model='gemini-1.5-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearchRetrieval())]
+                )
+            )
+            return response.text.replace("\n", "<br>")
         except Exception as e:
             print(f"   ⚠️ AI 수집 오류: {e}")
             return f"<h3>🔍 제품 정밀 분석</h3>'{p_name}'은 신뢰할 수 있는 성능과 품질을 갖춘 추천 모델입니다."
@@ -82,14 +81,14 @@ class CoupangExpertBot:
         existing_ids = {f.split('_')[-1].replace('.html', '') for f in os.listdir(self.posts_dir) if '_' in f}
         success_count, max_target = 0, 10
         
-        # 💎 504개 중복을 피하기 위해 키워드를 세분화하고 페이지를 크게 점프합니다.
+        # 💎 500개 중복을 피하기 위해 키워드를 더 정교하게 바꾸고 페이지를 무작위로 뒤집니다.
         seeds = ["게이밍 노트북 i7", "대용량 캠핑 웨건", "차이슨 무선청소기 신제품", "오메가3 영양제 추천", "로봇청소기 물걸레"]
         target = random.choice(seeds)
-        start_page = random.randint(10, 50) # 💎 10~50페이지 사이에서 무작위 점프
+        start_page = random.randint(10, 100) # 💎 100페이지까지 무작위 점프하여 수색
         
         print(f"🕵️ 현재 {len(existing_ids)}개 진열 중. '{target}' {start_page}p부터 수색 시작!")
 
-        for page in range(start_page, start_page + 10):
+        for page in range(start_page, start_page + 15):
             if success_count >= max_target: break
             items = self.fetch_data(target, page)
             if not items: continue
@@ -102,7 +101,7 @@ class CoupangExpertBot:
                 content = self.generate_research_content(item['productName'])
                 img, price = item['productImage'].split('?')[0], format(int(item['productPrice']), ',')
                 
-                disclosure = "<p style='color:#888; font-size:0.8rem; text-align:center; margin-top:50px;'>이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>"
+                disclosure = "<p style='color:#888; font-size:0.9rem; text-align:center; margin-top:50px;'>이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>"
                 
                 filename = f"{self.posts_dir}/{datetime.now().strftime('%Y%m%d')}_{p_id}.html"
                 with open(filename, "w", encoding="utf-8") as f:
@@ -110,7 +109,7 @@ class CoupangExpertBot:
                 
                 existing_ids.add(p_id)
                 success_count += 1
-                time.sleep(45) # 💎 고품질 검색 처리를 위해 대기 시간을 조금 더 가집니다.
+                time.sleep(45) # 💎 고품질 검색 데이터 처리를 위해 대기 시간 상향
                 if success_count >= max_target: break
 
         self.update_web()
