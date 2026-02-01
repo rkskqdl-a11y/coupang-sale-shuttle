@@ -19,7 +19,7 @@ class CoupangExpertBot:
         self.posts_dir = "posts"
         os.makedirs(self.posts_dir, exist_ok=True)
         
-        # 💎 신형 제미나이 클라이언트 설정
+        # 💎 최신 제미나이 클라이언트 설정
         if self.gemini_key:
             self.client = genai.Client(api_key=self.gemini_key)
 
@@ -41,21 +41,21 @@ class CoupangExpertBot:
         except: return []
 
     def generate_research_content(self, p_name):
-        """💎 구글 실시간 검색(Grounding)을 통해 외부 정보를 수집합니다."""
+        """💎 구글 실시간 검색(Grounding)을 통해 외부 정보를 긁어모아 2,000자 칼럼을 씁니다."""
         if not self.gemini_key: return "상세 분석 준비 중"
         
-        # 💎 AI에게 '반드시 검색해서 외부 사양을 찾아내라'는 강력한 미션을 줍니다.
+        # 💎 AI에게 '구글에서 이 모델을 직접 수색하라'는 임무를 부여합니다.
         prompt = (
-            f"상품명 '{p_name}'에 대해 실시간 구글 검색을 수행하고 IT 전문 기자의 관점에서 칼럼을 작성하세요.\n\n"
-            f"1. [상세 사양]: 검색된 정보를 바탕으로 이 모델의 CPU, 배터리, 무게, 기능 등 주요 사양을 표(table) 형식으로 상세히 만드세요.\n"
-            f"2. [전문 분석]: 쿠팡 외의 다른 쇼핑몰이나 제조사 페이지에서 언급된 이 제품의 독보적인 기술 포인트 3가지를 분석하세요.\n"
-            f"3. [실사용자 리뷰 분석]: 블로그, 커뮤니티, 유튜브의 실제 사용자 후기를 장단점으로 나누어 1,000자 이상으로 깊이 있게 정리하세요.\n"
+            f"상품명 '{p_name}'에 대해 실시간 구글 검색을 수행하고 쇼핑 전문 기자의 관점에서 칼럼을 작성하세요.\n\n"
+            f"1. [상세 스펙표]: 검색된 정보를 바탕으로 이 모델의 핵심 사양(CPU, 배터리, 소재, 무게 등)을 정확한 수치와 함께 HTML 표(table)로 만드세요.\n"
+            f"2. [전문 분석]: 쿠팡 외의 다른 테크 리뷰나 제조사 공식 홈페이지에서 강조하는 이 제품의 독보적인 장점 3가지를 분석하세요.\n"
+            f"3. [실사용 후기 분석]: 실제 사용자들의 긍정적인 평가와 아쉬운 점을 나누어 1,000자 이상으로 매우 깊이 있게 정리하세요.\n"
             f"4. <h3> 태그를 사용하여 문단을 나누고 전체 2,000자 내외의 압도적인 분량으로 작성하세요.\n"
-            f"5. 제목을 본문 첫 문장에 반복하지 말고, HTML 태그만 출력하세요. 친절한 해요체로 작성하세요."
+            f"5. 제목을 본문에 반복하지 말고, HTML 태그만 출력하세요. 해요체로 작성하세요."
         )
         
         try:
-            # 🚨 [해결] 404 에러를 잡기 위해 모델명에서 'models/' 접두어를 제거합니다.
+            # 🚨 [해결] 404 에러 방지: 모델명을 'gemini-1.5-flash'로 수정
             response = self.client.models.generate_content(
                 model='gemini-1.5-flash',
                 contents=prompt,
@@ -63,11 +63,11 @@ class CoupangExpertBot:
                     tools=[types.Tool(google_search=types.GoogleSearch())]
                 )
             )
-            # AI 답변 텍스트만 추출
-            return response.text.replace("\n", "<br>")
+            # 마크다운 코드 블록 제거 및 클리닝
+            return response.text.replace("```html", "").replace("```", "").replace("\n", "<br>")
         except Exception as e:
             print(f"   ⚠️ AI 수집 오류: {e}")
-            return f"<h3>🔍 제품 정밀 분석</h3>'{p_name}'은 신뢰할 수 있는 성능과 품질을 갖춘 고성능 추천 모델입니다."
+            return f"<h3>🔍 제품 정밀 분석</h3>'{p_name}'은 신뢰할 수 있는 성능과 품질을 갖춘 추천 모델입니다."
 
     def get_real_title(self, path):
         try:
@@ -84,10 +84,10 @@ class CoupangExpertBot:
         existing_ids = {f.split('_')[-1].replace('.html', '') for f in os.listdir(self.posts_dir) if '_' in f}
         success_count, max_target = 0, 10
         
-        # 💎 524개 중복을 피하기 위해 페이지 점프 범위를 확장합니다.
+        # 💎 525개 중복을 피하기 위해 페이지 점프 범위를 극대화합니다.
         seeds = ["게이밍 노트북 i7", "대용량 캠핑 웨건", "차이슨 무선청소기 신제품", "오메가3 영양제 추천", "로봇청소기 물걸레"]
         target = random.choice(seeds)
-        start_page = random.randint(10, 150) # 💎 150페이지까지 무작위 점프
+        start_page = random.randint(10, 150) # 💎 150페이지까지 무작위 점프하여 수색
         
         print(f"🕵️ 현재 {len(existing_ids)}개 진열 중. '{target}' {start_page}p부터 수색 시작!")
 
@@ -104,7 +104,7 @@ class CoupangExpertBot:
                 content = self.generate_research_content(item['productName'])
                 img, price = item['productImage'].split('?')[0], format(int(item['productPrice']), ',')
                 
-                disclosure = "<p style='color:#888; font-size:0.9rem; text-align:center; margin-top:50px;'>이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>"
+                disclosure = "<p style='color:#888; font-size:0.8rem; text-align:center; margin-top:50px;'>이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>"
                 
                 filename = f"{self.posts_dir}/{datetime.now().strftime('%Y%m%d')}_{p_id}.html"
                 with open(filename, "w", encoding="utf-8") as f:
@@ -112,7 +112,7 @@ class CoupangExpertBot:
                 
                 existing_ids.add(p_id)
                 success_count += 1
-                time.sleep(60) # 💎 고품질 검색 데이터 처리를 위해 대기 시간을 1분으로 상향
+                time.sleep(60) # 💎 심층 검색 데이터 생성을 위해 대기 시간을 1분으로 설정
                 if success_count >= max_target: break
 
         self.update_web()
